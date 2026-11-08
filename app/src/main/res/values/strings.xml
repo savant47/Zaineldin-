@@ -1,0 +1,20 @@
+<resources>
+    <string name="app_name">مدرس زين الخصوصي</string>
+    <string name="splash_title_line1">تطبيق المدرس الخصوصي</string>
+    <string name="splash_title_line2">لزين الدين آسر الشربيني</string>
+    <string name="splash_title_line3">الصف الثاني الابتدائي لغات</string>
+    <string name="curriculum_badge_2026">المنهج المصري المحدّث ٢٠٢٦/٢٠٢٧ (بدون مادة اكتشف)</string>
+    <string name="sign_in_google_button">تسجيل الدخول بحساب Google للمزامنة السحابية</string>
+    <string name="sign_out_label">تسجيل الخروج</string>
+    <string name="nav_home">المواد والمكافآت</string>
+    <string name="nav_classroom">الفصل التفاعلي</string>
+    <string name="nav_curriculum">المناهج وسكربت PDF</string>
+    <string name="level_beginner">مبتدئ</string>
+    <string name="level_advanced">متقدم</string>
+    <string name="speaker_read_board">قراءة السبورة (مجاني)</string>
+    <string name="speaker_stop">إيقاف الصوت</string>
+    <string name="mic_speak_to_teacher">تحدث للمدرس (مجاني)</string>
+    <string name="mic_listening">جاري الاستماع لزين...</string>
+    <string name="instant_lang_switch">تبديل فوري للغات</string>
+    <string name="grounding_verified_badge">مرجع رسمي موثّق (Grounding 100%)</string>
+</resources>

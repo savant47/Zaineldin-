@@ -1,0 +1,203 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net: default deny all reads and writes
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isZeinDirectSession(userId) {
+      return userId == 'zein_eldin_student_2027';
+    }
+
+    function isOwner(userId) {
+      return (isSignedIn() && request.auth.uid == userId) || isZeinDirectSession(userId);
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidOwnerField(data, userId) {
+      return data.userId is string && data.userId == userId && (
+        (isSignedIn() && data.userId == request.auth.uid) || isZeinDirectSession(userId)
+      );
+    }
+
+    function isValidStudentProfile(data, userId) {
+      return isValidOwnerField(data, userId) &&
+             data.studentName is string && data.studentName.size() >= 1 && data.studentName.size() <= 100 &&
+             data.gradeLabel is string && data.gradeLabel.size() >= 1 && data.gradeLabel.size() <= 100 &&
+             data.studentLevel is string && (data.studentLevel == 'beginner' || data.studentLevel == 'advanced') &&
+             data.preferredLanguageMode is string && (data.preferredLanguageMode == 'bilingual' || data.preferredLanguageMode == 'arabic' || data.preferredLanguageMode == 'english') &&
+             data.points is int && data.points >= 0 && data.points <= 1000000 &&
+             data.completedLessonsCount is int && data.completedLessonsCount >= 0 && data.completedLessonsCount <= 10000 &&
+             data.streakDays is int && data.streakDays >= 0 && data.streakDays <= 3650 &&
+             data.reminderEnabled is bool &&
+             data.reminderHour is int && data.reminderHour >= 0 && data.reminderHour <= 23 &&
+             data.reminderMinute is int && data.reminderMinute >= 0 && data.reminderMinute <= 59 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidCurriculumLesson(data, userId) {
+      return isValidOwnerField(data, userId) &&
+             data.subjectId is string && (
+               data.subjectId == 'arabic' ||
+               data.subjectId == 'religion' ||
+               data.subjectId == 'math' ||
+               data.subjectId == 'connect' ||
+               data.subjectId == 'connect_plus'
+             ) &&
+             data.subjectNameAr is string && data.subjectNameAr.size() >= 1 && data.subjectNameAr.size() <= 100 &&
+             data.unitTitle is string && data.unitTitle.size() >= 1 && data.unitTitle.size() <= 150 &&
+             data.lessonTitle is string && data.lessonTitle.size() >= 1 && data.lessonTitle.size() <= 150 &&
+             data.lessonOrder is int && data.lessonOrder >= 1 && data.lessonOrder <= 500 &&
+             data.officialContent is string && data.officialContent.size() >= 10 && data.officialContent.size() <= 15000 &&
+             data.keyTerms is string && data.keyTerms.size() >= 1 && data.keyTerms.size() <= 2000 &&
+             data.sourceBookName is string && data.sourceBookName.size() >= 1 && data.sourceBookName.size() <= 200 &&
+             data.isCompleted is bool &&
+             (!('lastAiExplanation' in data) || data.lastAiExplanation == null || (data.lastAiExplanation is string && data.lastAiExplanation.size() <= 15000)) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    match /users/{userId}/profile/{profileId} {
+      allow get: if isOwner(userId) && isValidId(userId) && isValidId(profileId);
+      allow list: if isOwner(userId) && isValidId(userId);
+
+      allow create: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       isValidId(profileId) &&
+                       incoming().keys().hasAll([
+                         'userId', 'studentName', 'gradeLabel', 'studentLevel',
+                         'preferredLanguageMode', 'points', 'completedLessonsCount',
+                         'streakDays', 'reminderEnabled', 'reminderHour', 'reminderMinute',
+                         'createdAt', 'updatedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'userId', 'studentName', 'gradeLabel', 'studentLevel',
+                         'preferredLanguageMode', 'points', 'completedLessonsCount',
+                         'streakDays', 'reminderEnabled', 'reminderHour', 'reminderMinute',
+                         'createdAt', 'updatedAt'
+                       ]) &&
+                       isValidStudentProfile(incoming(), userId);
+
+      allow update: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       isValidId(profileId) &&
+                       isValidStudentProfile(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'studentName', 'gradeLabel', 'studentLevel', 'preferredLanguageMode',
+                         'points', 'completedLessonsCount', 'streakDays',
+                         'reminderEnabled', 'reminderHour', 'reminderMinute', 'updatedAt'
+                       ]);
+
+      allow delete: if isOwner(userId) && isValidId(userId) && isValidId(profileId);
+    }
+
+    match /users/{userId}/lessons/{lessonId} {
+      allow get: if isOwner(userId) && isValidId(userId) && isValidId(lessonId);
+      allow list: if isOwner(userId) && isValidId(userId);
+
+      allow create: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       isValidId(lessonId) &&
+                       incoming().keys().hasAll([
+                         'userId', 'subjectId', 'subjectNameAr', 'unitTitle',
+                         'lessonTitle', 'lessonOrder', 'officialContent',
+                         'keyTerms', 'sourceBookName', 'isCompleted',
+                         'createdAt', 'updatedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'userId', 'subjectId', 'subjectNameAr', 'unitTitle',
+                         'lessonTitle', 'lessonOrder', 'officialContent',
+                         'keyTerms', 'sourceBookName', 'isCompleted',
+                         'lastAiExplanation', 'createdAt', 'updatedAt'
+                       ]) &&
+                       isValidCurriculumLesson(incoming(), userId);
+
+      allow update: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       isValidId(lessonId) &&
+                       isValidCurriculumLesson(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'subjectId', 'subjectNameAr', 'unitTitle', 'lessonTitle',
+                         'lessonOrder', 'officialContent', 'keyTerms', 'sourceBookName',
+                         'isCompleted', 'lastAiExplanation', 'updatedAt'
+                       ]);
+
+      allow delete: if isOwner(userId) && isValidId(userId) && isValidId(lessonId);
+    }
+
+    function isValidChatMessage(data, userId) {
+      return isValidOwnerField(data, userId) &&
+             data.sender is string && (data.sender == 'user' || data.sender == 'ai') &&
+             data.messageText is string && data.messageText.size() >= 1 && data.messageText.size() <= 15000 &&
+             data.subjectFilter is string && (
+               data.subjectFilter == 'all' ||
+               data.subjectFilter == 'arabic' ||
+               data.subjectFilter == 'religion' ||
+               data.subjectFilter == 'math' ||
+               data.subjectFilter == 'connect' ||
+               data.subjectFilter == 'connect_plus'
+             ) &&
+             data.interactionMode is string && (
+               data.interactionMode == 'chat' ||
+               data.interactionMode == 'quiz' ||
+               data.interactionMode == 'exam' ||
+               data.interactionMode == 'revision'
+             ) &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    match /users/{userId}/chat_messages/{messageId} {
+      allow get: if isOwner(userId) && isValidId(userId) && isValidId(messageId);
+      allow list: if isOwner(userId) && isValidId(userId);
+
+      allow create: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       isValidId(messageId) &&
+                       incoming().keys().hasAll([
+                         'userId', 'sender', 'messageText', 'subjectFilter',
+                         'interactionMode', 'createdAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'userId', 'sender', 'messageText', 'subjectFilter',
+                         'interactionMode', 'createdAt'
+                       ]) &&
+                       isValidChatMessage(incoming(), userId);
+
+      allow update: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       isValidId(messageId) &&
+                       isValidChatMessage(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().sender == existing().sender &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'messageText', 'subjectFilter', 'interactionMode'
+                       ]);
+
+      allow delete: if isOwner(userId) && isValidId(userId) && isValidId(messageId);
+    }
+  }
+}
