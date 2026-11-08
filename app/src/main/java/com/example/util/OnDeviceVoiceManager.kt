@@ -50,11 +50,17 @@ class OnDeviceVoiceManager(context: Context) {
 
     private fun initTextToSpeech() {
         try {
-            tts = TextToSpeech(appContext) { status ->
+            // تفضيل محرك Google Speech Services الرسمي لأنه يحتوي على الأصوات العصبية الفصحى المحسنة
+            tts = TextToSpeech(appContext, { status ->
                 if (status == TextToSpeech.SUCCESS) {
                     _isTtsReady.value = true
-                    tts?.setPitch(1.05f)
-                    tts?.setSpeechRate(0.92f)
+                    // ضبط وتيرة وطبقة الصوت لتكون دافئة وطبيعية وأشبه بمدرس ودود
+                    tts?.setPitch(1.0f)
+                    tts?.setSpeechRate(0.88f)
+                    
+                    // اختيار أفضل نبرة صوتية متوفرة للعربية (تفضيل الأصوات عالية الجودة / غير الروبوتية)
+                    configureBestAvailableVoice()
+
                     tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                         override fun onStart(utteranceId: String?) {
                             _isSpeaking.value = true
@@ -73,10 +79,43 @@ class OnDeviceVoiceManager(context: Context) {
                     _isTtsReady.value = false
                     _voiceStatusMessage.value = "محرك النطق الصوتي غير مفعل على هذا الجهاز"
                 }
-            }
+            }, "com.google.android.tts")
         } catch (e: Exception) {
-            _isTtsReady.value = false
-            _voiceStatusMessage.value = "تعذر تهيئة القارئ الصوتي المحلي"
+            // في حال عدم توفر حزمة جوجل، العودة للمحرك الافتراضي في النظام
+            try {
+                tts = TextToSpeech(appContext) { status ->
+                    if (status == TextToSpeech.SUCCESS) {
+                        _isTtsReady.value = true
+                        tts?.setPitch(1.0f)
+                        tts?.setSpeechRate(0.88f)
+                        configureBestAvailableVoice()
+                    }
+                }
+            } catch (_: Exception) {
+                _isTtsReady.value = false
+                _voiceStatusMessage.value = "تعذر تهيئة القارئ الصوتي المحلي"
+            }
+        }
+    }
+
+    private fun configureBestAvailableVoice() {
+        try {
+            val engine = tts ?: return
+            val voices = engine.voices ?: return
+            // البحث عن صوت عربي عالي الجودة لا يحتاج اتصال شبكة بطيء أو روبوتي
+            val arabicVoice = voices.firstOrNull { voice ->
+                voice.locale.language == "ar" &&
+                    (voice.name.contains("natural", ignoreCase = true) ||
+                        voice.name.contains("wavenet", ignoreCase = true) ||
+                        voice.name.contains("neural", ignoreCase = true) ||
+                        voice.quality >= android.speech.tts.Voice.QUALITY_VERY_HIGH)
+            } ?: voices.firstOrNull { it.locale.language == "ar" && !it.isNetworkConnectionRequired }
+            
+            if (arabicVoice != null) {
+                engine.voice = arabicVoice
+            }
+        } catch (_: Exception) {
+            // Fallback gracefully
         }
     }
 

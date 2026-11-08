@@ -178,7 +178,9 @@ class TutorViewModel(
 
     private val defaultSeededLessons: List<CurriculumLesson> by lazy {
         OfficialCurriculumSeed.getInitialLessons(currentUserId)
-            .map { it.second }
+            .map { (key, lesson) ->
+                if (lesson.id.isBlank()) lesson.copy(id = key) else lesson
+            }
             .sortedWith(compareBy({ it.subjectId }, { it.lessonOrder }))
     }
 

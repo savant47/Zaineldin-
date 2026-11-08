@@ -247,7 +247,10 @@ fun HomeDashboardScreen(
             }
         }
 
-        items(subjectLessons, key = { it.id }) { lesson ->
+        items(
+            items = subjectLessons,
+            key = { lesson -> lesson.id.ifBlank { "${lesson.subjectId}_${lesson.lessonOrder}_${lesson.lessonTitle}" } }
+        ) { lesson ->
             LessonItemCard(
                 lesson = lesson,
                 accentColor = Color(selectedSubject.accentHex),

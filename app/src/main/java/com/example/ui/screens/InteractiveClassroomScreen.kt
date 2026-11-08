@@ -230,7 +230,10 @@ fun InteractiveClassroomScreen(
                 )
             }
 
-            items(lessonsForSelectedSubject, key = { it.id }) { item ->
+            items(
+                items = lessonsForSelectedSubject,
+                key = { item -> item.id.ifBlank { "${item.subjectId}_${item.lessonOrder}_${item.lessonTitle}" } }
+            ) { item ->
                 Card(
                     onClick = { onSelectLesson(item) },
                     shape = RoundedCornerShape(16.dp),
@@ -306,7 +309,10 @@ fun InteractiveClassroomScreen(
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(allLessonsForSubject, key = { it.id }) { item ->
+                    items(
+                        items = allLessonsForSubject,
+                        key = { item -> "quick_${item.id.ifBlank { "${item.subjectId}_${item.lessonOrder}_${item.lessonTitle}" }}" }
+                    ) { item ->
                         val selected = item.id == activeLesson.id
                         FilterChip(
                             selected = selected,
