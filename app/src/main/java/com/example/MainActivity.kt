@@ -14,7 +14,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import android.content.res.Configuration
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.Close
@@ -194,162 +201,219 @@ fun AuthenticatedTutorApp(
         tutorViewModel.getBadgesForPoints(profile.points, profile.completedLessonsCount)
     }
 
-    Scaffold(
-        contentWindowInsets = WindowInsets.safeDrawing,
-        bottomBar = {
-            NavigationBar(
-                modifier = Modifier.testTag("bottom_navigation_bar")
-            ) {
-                NavigationBarItem(
-                    selected = currentTab == MainTab.HOME_SUBJECTS,
-                    onClick = { tutorViewModel.selectTab(MainTab.HOME_SUBJECTS) },
-                    icon = { Icon(Icons.Default.Home, contentDescription = "المواد والمكافآت") },
-                    label = { Text("المواد") },
-                    modifier = Modifier.testTag("nav_tab_home")
-                )
-                NavigationBarItem(
-                    selected = currentTab == MainTab.INTERACTIVE_CLASSROOM,
-                    onClick = {
-                        tutorViewModel.selectTab(MainTab.INTERACTIVE_CLASSROOM)
-                    },
-                    icon = { Icon(Icons.Default.School, contentDescription = "الفصل التفاعلي") },
-                    label = { Text("السبورة") },
-                    modifier = Modifier.testTag("nav_tab_classroom")
-                )
-                NavigationBarItem(
-                    selected = currentTab == MainTab.CHAT_TUTOR,
-                    onClick = { tutorViewModel.selectTab(MainTab.CHAT_TUTOR) },
-                    icon = { Icon(Icons.Default.Forum, contentDescription = "الشات والامتحانات") },
-                    label = { Text("الشات والامتحانات") },
-                    modifier = Modifier.testTag("nav_tab_chat")
-                )
-                NavigationBarItem(
-                    selected = currentTab == MainTab.CURRICULUM_AND_PYTHON,
-                    onClick = { tutorViewModel.selectTab(MainTab.CURRICULUM_AND_PYTHON) },
-                    icon = { Icon(Icons.Default.AutoStories, contentDescription = "الكتب والتحديث واللوج") },
-                    label = { Text("التحديث واللوج") },
-                    modifier = Modifier.testTag("nav_tab_curriculum")
-                )
-            }
-        }
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
-            if (statusBanner != null) {
-                Surface(
-                    color = MaterialTheme.colorScheme.secondaryContainer,
-                    modifier = Modifier.fillMaxWidth()
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val isWideScreen = maxWidth >= 600.dp || isLandscape
+
+        Row(modifier = Modifier.fillMaxSize()) {
+            // In Landscape or Tablet wide screens, display ergonomic NavigationRail on the side
+            if (isWideScreen) {
+                NavigationRail(
+                    modifier = Modifier.testTag("tablet_navigation_rail")
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = statusBanner.orEmpty(),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        IconButton(
-                            onClick = { tutorViewModel.clearStatusBanner() }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    NavigationRailItem(
+                        selected = currentTab == MainTab.HOME_SUBJECTS,
+                        onClick = { tutorViewModel.selectTab(MainTab.HOME_SUBJECTS) },
+                        icon = { Icon(Icons.Default.Home, contentDescription = "المواد والمكافآت") },
+                        label = { Text("المواد") },
+                        modifier = Modifier.testTag("rail_tab_home")
+                    )
+                    NavigationRailItem(
+                        selected = currentTab == MainTab.INTERACTIVE_CLASSROOM,
+                        onClick = { tutorViewModel.selectTab(MainTab.INTERACTIVE_CLASSROOM) },
+                        icon = { Icon(Icons.Default.School, contentDescription = "الفصل التفاعلي") },
+                        label = { Text("السبورة") },
+                        modifier = Modifier.testTag("rail_tab_classroom")
+                    )
+                    NavigationRailItem(
+                        selected = currentTab == MainTab.CHAT_TUTOR,
+                        onClick = { tutorViewModel.selectTab(MainTab.CHAT_TUTOR) },
+                        icon = { Icon(Icons.Default.Forum, contentDescription = "الشات والامتحانات") },
+                        label = { Text("الشات") },
+                        modifier = Modifier.testTag("rail_tab_chat")
+                    )
+                    NavigationRailItem(
+                        selected = currentTab == MainTab.CURRICULUM_AND_PYTHON,
+                        onClick = { tutorViewModel.selectTab(MainTab.CURRICULUM_AND_PYTHON) },
+                        icon = { Icon(Icons.Default.AutoStories, contentDescription = "الكتب والتحديث واللوج") },
+                        label = { Text("التحديث") },
+                        modifier = Modifier.testTag("rail_tab_curriculum")
+                    )
+                }
+            }
+
+            Scaffold(
+                modifier = Modifier.weight(1f),
+                contentWindowInsets = WindowInsets.safeDrawing,
+                bottomBar = {
+                    if (!isWideScreen) {
+                        NavigationBar(
+                            modifier = Modifier.testTag("bottom_navigation_bar")
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "إغلاق الإشعار"
+                            NavigationBarItem(
+                                selected = currentTab == MainTab.HOME_SUBJECTS,
+                                onClick = { tutorViewModel.selectTab(MainTab.HOME_SUBJECTS) },
+                                icon = { Icon(Icons.Default.Home, contentDescription = "المواد والمكافآت") },
+                                label = { Text("المواد") },
+                                modifier = Modifier.testTag("nav_tab_home")
+                            )
+                            NavigationBarItem(
+                                selected = currentTab == MainTab.INTERACTIVE_CLASSROOM,
+                                onClick = {
+                                    tutorViewModel.selectTab(MainTab.INTERACTIVE_CLASSROOM)
+                                },
+                                icon = { Icon(Icons.Default.School, contentDescription = "الفصل التفاعلي") },
+                                label = { Text("السبورة") },
+                                modifier = Modifier.testTag("nav_tab_classroom")
+                            )
+                            NavigationBarItem(
+                                selected = currentTab == MainTab.CHAT_TUTOR,
+                                onClick = { tutorViewModel.selectTab(MainTab.CHAT_TUTOR) },
+                                icon = { Icon(Icons.Default.Forum, contentDescription = "الشات والامتحانات") },
+                                label = { Text("الشات والامتحانات") },
+                                modifier = Modifier.testTag("nav_tab_chat")
+                            )
+                            NavigationBarItem(
+                                selected = currentTab == MainTab.CURRICULUM_AND_PYTHON,
+                                onClick = { tutorViewModel.selectTab(MainTab.CURRICULUM_AND_PYTHON) },
+                                icon = { Icon(Icons.Default.AutoStories, contentDescription = "الكتب والتحديث واللوج") },
+                                label = { Text("التحديث واللوج") },
+                                modifier = Modifier.testTag("nav_tab_curriculum")
                             )
                         }
                     }
                 }
-            }
-
-            if (lessonsUiState is DataUiState.Loading && lessons.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
+            ) { innerPadding ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    CircularProgressIndicator()
-                }
-            } else {
-                when (currentTab) {
-                    MainTab.HOME_SUBJECTS -> {
-                        HomeDashboardScreen(
-                            profile = profile,
-                            lessons = lessons,
-                            selectedSubject = selectedSubject,
-                            badges = badges,
-                            onSelectSubject = { tutorViewModel.selectSubject(it) },
-                            onOpenLesson = { tutorViewModel.openLessonInClassroom(it) },
-                            onChangeStudentLevel = { tutorViewModel.setStudentLevel(it) },
-                            onUpdateReminder = { enabled, h, m ->
-                                tutorViewModel.updateReminder(enabled, h, m)
-                            },
-                            onSignOut = {
-                                signOut(credentialManager, scope) {
-                                    onExitToSplash()
+                    if (statusBanner != null) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = statusBanner.orEmpty(),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                IconButton(
+                                    onClick = { tutorViewModel.clearStatusBanner() }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "إغلاق الإشعار"
+                                    )
                                 }
                             }
-                        )
+                        }
                     }
 
-                    MainTab.INTERACTIVE_CLASSROOM -> {
-                        val subjectLessons = lessons.filter { it.subjectId == selectedSubject.id }
-                        InteractiveClassroomScreen(
-                            activeLesson = activeLesson,
-                            selectedSubject = selectedSubject,
-                            allLessons = lessons,
-                            allLessonsForSubject = subjectLessons,
-                            studentLevel = StudentLevel.fromCode(profile.studentLevel),
-                            languageMode = LanguageMode.fromCode(profile.preferredLanguageMode),
-                            chalkboardState = chalkboardState,
-                            teacherReplyState = teacherReplyState,
-                            onSelectSubject = { tutorViewModel.selectSubject(it) },
-                            onSelectLesson = { tutorViewModel.openLessonInClassroom(it) },
-                            onSwitchLanguageMode = { tutorViewModel.setLanguageMode(it) },
-                            onRegenerateExplanation = { tutorViewModel.explainCurrentLessonWithGemini() },
-                            onSendStudentQuestionOrAnswer = { tutorViewModel.askOrAnswerTeacher(it) }
-                        )
-                    }
+                    if (lessonsUiState is DataUiState.Loading && lessons.isEmpty()) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator()
+                        }
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .widthIn(max = if (isWideScreen) 1100.dp else 600.dp),
+                            contentAlignment = Alignment.TopCenter
+                        ) {
+                            when (currentTab) {
+                                MainTab.HOME_SUBJECTS -> {
+                                    HomeDashboardScreen(
+                                        profile = profile,
+                                        lessons = lessons,
+                                        selectedSubject = selectedSubject,
+                                        badges = badges,
+                                        onSelectSubject = { tutorViewModel.selectSubject(it) },
+                                        onOpenLesson = { tutorViewModel.openLessonInClassroom(it) },
+                                        onChangeStudentLevel = { tutorViewModel.setStudentLevel(it) },
+                                        onUpdateReminder = { enabled, h, m ->
+                                            tutorViewModel.updateReminder(enabled, h, m)
+                                        },
+                                        onSignOut = {
+                                            signOut(credentialManager, scope) {
+                                                onExitToSplash()
+                                            }
+                                        }
+                                    )
+                                }
 
-                    MainTab.CHAT_TUTOR -> {
-                        ChatScreen(
-                            messages = chatMessages,
-                            allLessons = lessons,
-                            selectedSubjectFilter = chatSubjectFilter,
-                            selectedInteractionMode = chatInteractionMode,
-                            streamingReplyText = chatStreamingReply,
-                            isGeneratingReply = isChatGenerating,
-                            studentLevel = StudentLevel.fromCode(profile.studentLevel),
-                            languageMode = LanguageMode.fromCode(profile.preferredLanguageMode),
-                            onSelectSubjectFilter = { tutorViewModel.setChatSubjectFilter(it) },
-                            onSelectInteractionMode = { tutorViewModel.setChatInteractionMode(it) },
-                            onSendQuery = { query, mode -> tutorViewModel.sendChatQuery(query, mode) },
-                            onClearHistory = { tutorViewModel.clearChatHistory() }
-                        )
-                    }
+                                MainTab.INTERACTIVE_CLASSROOM -> {
+                                    val subjectLessons = lessons.filter { it.subjectId == selectedSubject.id }
+                                    InteractiveClassroomScreen(
+                                        activeLesson = activeLesson,
+                                        selectedSubject = selectedSubject,
+                                        allLessons = lessons,
+                                        allLessonsForSubject = subjectLessons,
+                                        studentLevel = StudentLevel.fromCode(profile.studentLevel),
+                                        languageMode = LanguageMode.fromCode(profile.preferredLanguageMode),
+                                        chalkboardState = chalkboardState,
+                                        teacherReplyState = teacherReplyState,
+                                        onSelectSubject = { tutorViewModel.selectSubject(it) },
+                                        onSelectLesson = { tutorViewModel.openLessonInClassroom(it) },
+                                        onSwitchLanguageMode = { tutorViewModel.setLanguageMode(it) },
+                                        onRegenerateExplanation = { tutorViewModel.explainCurrentLessonWithGemini() },
+                                        onSendStudentQuestionOrAnswer = { tutorViewModel.askOrAnswerTeacher(it) }
+                                    )
+                                }
 
-                    MainTab.CURRICULUM_AND_PYTHON -> {
-                        CurriculumCenterScreen(
-                            currentUserId = currentUserId,
-                            totalSyncedLessonsCount = lessons.size,
-                            onSyncUploadedBooks = { tutorViewModel.syncAllUploadedBooks() },
-                            onRunSystemDiagnostics = { tutorViewModel.runSelfDiagnosticsCheck() },
-                            onAddGroundedLesson = { subj, unit, title, content, terms, book ->
-                                tutorViewModel.addCustomLessonFromForm(
-                                    subject = subj,
-                                    unitTitle = unit,
-                                    lessonTitle = lessonTitleFromForm(title),
-                                    officialContent = content,
-                                    keyTerms = terms,
-                                    sourceBookName = book
-                                )
+                                MainTab.CHAT_TUTOR -> {
+                                    ChatScreen(
+                                        messages = chatMessages,
+                                        allLessons = lessons,
+                                        selectedSubjectFilter = chatSubjectFilter,
+                                        selectedInteractionMode = chatInteractionMode,
+                                        streamingReplyText = chatStreamingReply,
+                                        isGeneratingReply = isChatGenerating,
+                                        studentLevel = StudentLevel.fromCode(profile.studentLevel),
+                                        languageMode = LanguageMode.fromCode(profile.preferredLanguageMode),
+                                        onSelectSubjectFilter = { tutorViewModel.setChatSubjectFilter(it) },
+                                        onSelectInteractionMode = { tutorViewModel.setChatInteractionMode(it) },
+                                        onSendQuery = { query, mode -> tutorViewModel.sendChatQuery(query, mode) },
+                                        onClearHistory = { tutorViewModel.clearChatHistory() }
+                                    )
+                                }
+
+                                MainTab.CURRICULUM_AND_PYTHON -> {
+                                    CurriculumCenterScreen(
+                                        currentUserId = currentUserId,
+                                        totalSyncedLessonsCount = lessons.size,
+                                        onSyncUploadedBooks = { tutorViewModel.syncAllUploadedBooks() },
+                                        onRunSystemDiagnostics = { tutorViewModel.runSelfDiagnosticsCheck() },
+                                        onAddGroundedLesson = { subj, unit, title, content, terms, book ->
+                                            tutorViewModel.addCustomLessonFromForm(
+                                                subject = subj,
+                                                unitTitle = unit,
+                                                lessonTitle = lessonTitleFromForm(title),
+                                                officialContent = content,
+                                                keyTerms = terms,
+                                                sourceBookName = book
+                                            )
+                                        }
+                                    )
+                                }
                             }
-                        )
+                        }
                     }
                 }
             }

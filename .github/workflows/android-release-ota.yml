@@ -1,0 +1,69 @@
+name: Build Android APK & Publish OTA Update
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths-ignore:
+      - 'README.md'
+      - '.gitignore'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release-apk:
+    name: Build APK & Publish GitHub Release for In-App Updater
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Ensure debug.keystore is decoded if base64 exists
+        run: |
+          if [ ! -f "debug.keystore" ] && [ -f "debug.keystore.base64" ]; then
+            base64 -d debug.keystore.base64 > debug.keystore
+          elif [ ! -f "debug.keystore" ]; then
+            keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          fi
+
+      - name: Build Debug APK
+        run: |
+          if [ -f "./gradlew" ]; then
+            chmod +x ./gradlew
+            ./gradlew assembleDebug --no-daemon
+          else
+            gradle assembleDebug --no-daemon
+          fi
+
+      - name: Prepare APK Artifact for In-App OTA Update
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk zein-tutor-debug.apk
+
+      - name: Publish Latest GitHub Release for In-App Update
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: "تحديث تطبيق مدرس زين الخصوصي (Build #${{ github.run_number }})"
+          body: |
+            تحديث تلقائي مبني عبر GitHub Actions بعد المزامنة:
+            - رقم البناء: #${{ github.run_number }}
+            - الفرع: ${{ github.ref_name }}
+            - تم تفعيل الوضعين الأفقي والرأسي وتوافق التابلت (Tablet / Landscape & Portrait).
+            - يمكنك تحميل التحديث مباشرة من داخل التطبيق عبر زر (فحص وتثبيت التحديث الداخلي).
+          files: |
+            zein-tutor-debug.apk
+          prerelease: false
+          make_latest: true
