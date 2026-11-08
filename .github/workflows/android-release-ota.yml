@@ -39,6 +39,14 @@ jobs:
             keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
           fi
 
+      - name: Ensure google-services.json exists
+        run: |
+          if [ ! -f "app/google-services.json" ]; then
+            echo "Creating app/google-services.json for Google Services Gradle plugin..."
+            mkdir -p app
+            echo "ewogICJwcm9qZWN0X2luZm8iOiB7CiAgICAicHJvamVjdF9udW1iZXIiOiAiMTAyMjQzMzc0MjQ0NCIsCiAgICAicHJvamVjdF9pZCI6ICJnZW4tbGFuZy1jbGllbnQtMDc1MTgwODQxMiIsCiAgICAic3RvcmFnZV9idWNrZXQiOiAiZ2VuLWxhbmctY2xpZW50LTA3NTE4MDg0MTIuZmlyZWJhc2VzdG9yYWdlLmFwcCIKICB9LAogICJjbGllbnQiOiBbCiAgICB7CiAgICAgICJjbGllbnRfaW5mbyI6IHsKICAgICAgICAibW9iaWxlc2RrX2FwcF9pZCI6ICIxOjEwMjI0MzM3NDI0NDQ6YW5kcm9pZDoyYzQ4NGIxNGFiYjExNmRhMzU5MjQ5IiwKICAgICAgICAiYW5kcm9pZF9jbGllbnRfaW5mbyI6IHsKICAgICAgICAgICJwYWNrYWdlX25hbWUiOiAiY29tLmFpc3R1ZGlvLnplaW50dXRvci5tcXJ2a3giCiAgICAgICAgfQogICAgICB9LAogICAgICAib2F1dGhfY2xpZW50IjogWwogICAgICAgIHsKICAgICAgICAgICJjbGllbnRfaWQiOiAiMTAyMjQzMzc0MjQ0NC0xZzB2c3A5MmkwNGp1ZWZyaXI4dHY2N242ZXZwYm0xMC5hcHBzLmdvb2dsZXVzZXJjb250ZW50LmNvbSIsCiAgICAgICAgICAiY2xpZW50X3R5cGUiOiAzCiAgICAgICAgfQogICAgICBdLAogICAgICAiYXBpX2tleSI6IFsKICAgICAgICB7CiAgICAgICAgICAiY3VycmVudF9rZXkiOiAiQUl6YVN5Qm12eWNZX0NJdV9Bb2R6REhPOFFod19rTUVyb0ZuZHhjIgogICAgICAgIH0KICAgICAgXSwKICAgICAgInNlcnZpY2VzIjogewogICAgICAgICJhcHBpbnZpdGVfc2VydmljZSI6IHsKICAgICAgICAgICJvdGhlcl9wbGF0Zm9ybV9vYXV0aF9jbGllbnQiOiBbCiAgICAgICAgICAgIHsKICAgICAgICAgICAgICAiY2xpZW50X2lkIjogIjEwMjI0MzM3NDI0NDQtMWcwdnNwOTJpMDRqdWVmcmlyOHR2NjduNmV2cGJtMTAuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLAogICAgICAgICAgICAgICJjbGllbnRfdHlwZSI6IDMKICAgICAgICAgICAgfQogICAgICAgICAgXQogICAgICAgIH0KICAgICAgfQogICAgfQogIF0sCiAgImNvbmZpZ3VyYXRpb25fdmVyc2lvbiI6ICIxIgp9" | base64 -d > app/google-services.json
+          fi
+
       - name: Build Debug APK
         run: |
           if [ -f "./gradlew" ]; then

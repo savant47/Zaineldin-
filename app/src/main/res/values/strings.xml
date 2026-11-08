@@ -17,4 +17,5 @@
     <string name="mic_listening">جاري الاستماع لزين...</string>
     <string name="instant_lang_switch">تبديل فوري للغات</string>
     <string name="grounding_verified_badge">مرجع رسمي موثّق (Grounding 100%)</string>
+    <string name="default_web_client_id" translatable="false">1022433742444-1g0vsp92i04juefrir8tv67n6evpbm10.apps.googleusercontent.com</string>
 </resources>

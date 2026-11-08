@@ -335,11 +335,11 @@ fun attemptAutoSignIn(
         onAuthSuccess()
         return
     }
-    val clientId = try {
-        context.getString(R.string.default_web_client_id)
-    } catch (_: Exception) {
-        onUnauthenticated()
-        return
+    val resId = context.resources.getIdentifier("default_web_client_id", "string", context.packageName)
+    val clientId = if (resId != 0) {
+        try { context.getString(resId) } catch (_: Exception) { "1022433742444-1g0vsp92i04juefrir8tv67n6evpbm10.apps.googleusercontent.com" }
+    } else {
+        "1022433742444-1g0vsp92i04juefrir8tv67n6evpbm10.apps.googleusercontent.com"
     }
 
     val googleIdOption = GetGoogleIdOption.Builder()
@@ -378,11 +378,11 @@ fun onGoogleSignInClicked(
     scope: CoroutineScope,
     onAuthCancelled: () -> Unit = {}
 ) {
-    val clientId = try {
-        context.getString(R.string.default_web_client_id)
-    } catch (_: Exception) {
-        onAuthError("إعدادات Google Sign-In غير مكتملة (default_web_client_id)")
-        return
+    val resId = context.resources.getIdentifier("default_web_client_id", "string", context.packageName)
+    val clientId = if (resId != 0) {
+        try { context.getString(resId) } catch (_: Exception) { "1022433742444-1g0vsp92i04juefrir8tv67n6evpbm10.apps.googleusercontent.com" }
+    } else {
+        "1022433742444-1g0vsp92i04juefrir8tv67n6evpbm10.apps.googleusercontent.com"
     }
 
     val signInOption = GetSignInWithGoogleOption.Builder(serverClientId = clientId).build()
