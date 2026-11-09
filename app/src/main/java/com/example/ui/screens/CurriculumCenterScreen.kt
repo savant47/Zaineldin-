@@ -157,12 +157,14 @@ fun CurriculumCenterScreen(
     val voiceManager = remember(context) { OnDeviceVoiceManager(context) }
 
     val savedRepoSlug by updateManager.githubRepoSlug.collectAsStateWithLifecycle()
+    val savedGithubToken by updateManager.githubToken.collectAsStateWithLifecycle()
     val updateState by updateManager.updateState.collectAsStateWithLifecycle()
     val diagnosticLogs by AppDiagnosticsLogger.logs.collectAsStateWithLifecycle()
 
     var showSettingsDialog by rememberSaveable { mutableStateOf(false) }
 
     var githubRepoInput by rememberSaveable(savedRepoSlug) { mutableStateOf(savedRepoSlug) }
+    var githubTokenInput by rememberSaveable(savedGithubToken) { mutableStateOf(savedGithubToken) }
     var updateActionNotice by remember { mutableStateOf<String?>(null) }
 
     var manualBugNoteInput by rememberSaveable { mutableStateOf("") }
@@ -356,10 +358,70 @@ fun CurriculumCenterScreen(
                             .testTag("github_repo_input")
                     )
 
+                    // شرح وتوجيه واضح جداً بخصوص المستودع الخاص (Private)
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = "🔒 هام: هل مستودع GitHub مضبوط كـ Private (خاص)؟",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "إذا كان المستودع Private، فإن GitHub يمنع هواتف الأندرويد من جلب الـ APK ويعطي خطأ 404.\n" +
+                                        "• للحل بضغطة واحدة: اجعل المستودع Public (عام) في GitHub عبر الزر أدناه.\n" +
+                                        "• أو: اكتب رمز GitHub Token في الخانة التالية إذا رغبت بإبقائه خاصاً.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
+                            OutlinedButton(
+                                onClick = {
+                                    val targetSlug = githubRepoInput.trim().ifBlank { InAppUpdateManager.DEFAULT_REPO_SLUG }
+                                    val settingsUrl = "https://github.com/$targetSlug/settings"
+                                    try {
+                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(settingsUrl)).apply {
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        }
+                                        context.startActivity(intent)
+                                    } catch (_: Exception) {}
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.Launch,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("فتح إعدادات المستودع في GitHub (لتحويله إلى Public)")
+                            }
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = githubTokenInput,
+                        onValueChange = { githubTokenInput = it },
+                        label = { Text("رمز GitHub Token (اختياري - فقط في حال إبقاء المستودع Private)") },
+                        placeholder = { Text("ghp_xxxxxxxxxxxxxxxxxxxx") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("github_token_input")
+                    )
+
                     Button(
                         onClick = {
                             scope.launch {
-                                updateManager.checkForUpdates(githubRepoInput)
+                                updateManager.checkForUpdates(githubRepoInput, githubTokenInput)
                             }
                         },
                         modifier = Modifier

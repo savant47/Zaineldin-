@@ -52,6 +52,11 @@ class InAppUpdateManager(context: Context) {
     private val _updateState = MutableStateFlow<UpdateCheckState>(UpdateCheckState.Idle)
     val updateState: StateFlow<UpdateCheckState> = _updateState.asStateFlow()
 
+    private val _githubToken = MutableStateFlow(
+        prefs.getString(KEY_GITHUB_TOKEN, "").orEmpty()
+    )
+    val githubToken: StateFlow<String> = _githubToken.asStateFlow()
+
     fun saveGithubRepository(rawInput: String) {
         val cleaned = normalizeRepoSlug(rawInput)
         prefs.edit().putString(KEY_GITHUB_REPO, cleaned).apply()
@@ -63,7 +68,20 @@ class InAppUpdateManager(context: Context) {
         )
     }
 
-    suspend fun checkForUpdates(customRepoInput: String? = null) {
+    fun saveGithubToken(token: String) {
+        val cleaned = token.trim()
+        prefs.edit().putString(KEY_GITHUB_TOKEN, cleaned).apply()
+        _githubToken.value = cleaned
+        if (cleaned.isNotBlank()) {
+            AppDiagnosticsLogger.logInfo(
+                tag = "InAppUpdater",
+                code = "TOKEN_CONFIGURED",
+                message = "تم حفظ رمز الوصول الخاص بـ GitHub للمستودع الخاص."
+            )
+        }
+    }
+
+    suspend fun checkForUpdates(customRepoInput: String? = null, customTokenInput: String? = null) {
         val slug = normalizeRepoSlug(customRepoInput ?: _githubRepoSlug.value)
         if (slug.isBlank() || !slug.contains("/")) {
             _updateState.value = UpdateCheckState.Error(
@@ -79,13 +97,25 @@ class InAppUpdateManager(context: Context) {
         }
 
         saveGithubRepository(slug)
+        val activeToken = customTokenInput?.trim() ?: _githubToken.value
+        if (!customTokenInput.isNullOrBlank()) {
+            saveGithubToken(customTokenInput)
+        }
+
         _updateState.value = UpdateCheckState.Checking
 
         withContext(Dispatchers.IO) {
             try {
-                // 1. فحص أحدث إصدار مبني عبر GitHub Actions Releases API
+                // 1. فحص أحدث إصدار مبني عبر GitHub Releases API (سواء Latest أو قائمة Releases)
                 val releaseApiUrl = "https://api.github.com/repos/$slug/releases/latest"
-                val releaseResult = fetchJsonFromUrl(releaseApiUrl)
+                var releaseResult = fetchJsonFromUrl(releaseApiUrl, activeToken)
+
+                if (releaseResult == null) {
+                    val releasesList = fetchJsonArrayFromUrl("https://api.github.com/repos/$slug/releases", activeToken)
+                    if (releasesList != null && releasesList.length() > 0) {
+                        releaseResult = releasesList.getJSONObject(0)
+                    }
+                }
 
                 if (releaseResult != null) {
                     val tagName = releaseResult.optString("tag_name", "v1.1")
@@ -131,8 +161,8 @@ class InAppUpdateManager(context: Context) {
                 }
 
                 // 2. فحص ملف version.json من الفرع الرئيسي (main أو master) مباشرة بعد المزامنة
-                val rawVersionJson = fetchJsonFromUrl("https://raw.githubusercontent.com/$slug/main/version.json")
-                    ?: fetchJsonFromUrl("https://raw.githubusercontent.com/$slug/master/version.json")
+                val rawVersionJson = fetchJsonFromUrl("https://raw.githubusercontent.com/$slug/main/version.json", activeToken)
+                    ?: fetchJsonFromUrl("https://raw.githubusercontent.com/$slug/master/version.json", activeToken)
 
                 if (rawVersionJson != null) {
                     val remoteVersionCode = rawVersionJson.optInt("versionCode", BuildConfig.VERSION_CODE)
@@ -175,14 +205,27 @@ class InAppUpdateManager(context: Context) {
                     }
                 } else {
                     val releasesWebUrl = "https://github.com/$slug/releases"
+                    val isPrivateSuspected = activeToken.isBlank()
+                    val errorMessage = if (isPrivateSuspected) {
+                        "🔒 المستودع ($slug) غير متاح للأندرويد لأنه Private (خاص) على GitHub ويعطي 404.\n\n" +
+                        "✅ الحل الأسهل والموصى به:\n" +
+                        "ادخل على إعدادات المستودع في GitHub واجعله Public (عام) عبر:\n" +
+                        "Settings ➜ Danger Zone ➜ Change visibility ➜ Make public.\n" +
+                        "بمجرد جعله Public سيعمل التحديث التلقائي مباشرة!\n\n" +
+                        "🔑 أو إذا أردت إبقاءه Private: اكتب رمز GitHub Token في الخانة أدناه."
+                    } else {
+                        "تم الاتصال بالمستودع عبر Token، ولكن لم يتم نشر أي Release أو ملف APK بعد.\n" +
+                        "يرجى التأكد من عمل مزامنة (Push/Sync) للكود إلى GitHub لتشغيل الـ Workflow تلقائياً."
+                    }
+
                     _updateState.value = UpdateCheckState.Error(
-                        errorCode = "REPO_OR_RELEASE_NOT_FOUND",
-                        message = "تعذر جلب الإصدار عبر API (قد يكون المستودع Private أو لم يُنشر Release بعد). اضغط على الرابط بالأسفل لفتح صفحة Releases مباشرة وتحميل الـ APK."
+                        errorCode = if (isPrivateSuspected) "REPO_IS_PRIVATE_404" else "NO_RELEASES_FOUND",
+                        message = errorMessage
                     )
                     AppDiagnosticsLogger.logWarning(
                         tag = "InAppUpdater",
-                        code = "REPO_NOT_FOUND_404",
-                        message = "المستودع $slug: تأكد من اسم المستودع، أو اجعله Public في GitHub ليعمل التحديث التلقائي، أو افتح صفحة Releases يدوياً.",
+                        code = if (isPrivateSuspected) "REPO_PRIVATE_404" else "NO_RELEASES",
+                        message = "المستودع $slug: $errorMessage",
                         details = releasesWebUrl
                     )
                 }
@@ -246,19 +289,48 @@ class InAppUpdateManager(context: Context) {
         }
     }
 
-    private fun fetchJsonFromUrl(urlStr: String): JSONObject? {
+    private fun fetchJsonFromUrl(urlStr: String, token: String? = null): JSONObject? {
         val conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             connectTimeout = 8000
             readTimeout = 8000
             setRequestProperty("Accept", "application/vnd.github+json")
             setRequestProperty("User-Agent", "ZeinPrivateTutorAndroidApp/${BuildConfig.VERSION_NAME}")
+            if (!token.isNullOrBlank()) {
+                setRequestProperty("Authorization", "Bearer ${token.trim()}")
+            }
         }
         return try {
             val status = conn.responseCode
             if (status in 200..299) {
                 val body = conn.inputStream.bufferedReader().use { it.readText() }
                 JSONObject(body)
+            } else {
+                null
+            }
+        } catch (_: Exception) {
+            null
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    private fun fetchJsonArrayFromUrl(urlStr: String, token: String? = null): org.json.JSONArray? {
+        val conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            connectTimeout = 8000
+            readTimeout = 8000
+            setRequestProperty("Accept", "application/vnd.github+json")
+            setRequestProperty("User-Agent", "ZeinPrivateTutorAndroidApp/${BuildConfig.VERSION_NAME}")
+            if (!token.isNullOrBlank()) {
+                setRequestProperty("Authorization", "Bearer ${token.trim()}")
+            }
+        }
+        return try {
+            val status = conn.responseCode
+            if (status in 200..299) {
+                val body = conn.inputStream.bufferedReader().use { it.readText() }
+                org.json.JSONArray(body)
             } else {
                 null
             }
@@ -285,6 +357,7 @@ class InAppUpdateManager(context: Context) {
     companion object {
         private const val PREFS_NAME = "zein_ota_updater_prefs"
         private const val KEY_GITHUB_REPO = "github_repo_slug"
+        private const val KEY_GITHUB_TOKEN = "github_access_token"
         private const val KEY_INSTALLED_RELEASE_TAG = "installed_release_tag"
         const val DEFAULT_REPO_SLUG = "savant47/Zaineldin-"
     }
