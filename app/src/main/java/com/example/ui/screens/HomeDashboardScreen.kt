@@ -181,12 +181,13 @@ fun HomeDashboardScreen(
                     }
                 }
 
+                val activeSubjects = SubjectType.entries.filter { profile.activeSubjectIds.contains(it.id) }.ifEmpty { SubjectType.entries }
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding = PaddingValues(vertical = 4.dp),
                     modifier = Modifier.testTag("subjects_row")
                 ) {
-                    items(SubjectType.entries) { subject ->
+                    items(activeSubjects) { subject ->
                         val countForSubject = lessons.count { it.subjectId == subject.id }
                         val doneForSubject = lessons.count { it.subjectId == subject.id && it.isCompleted }
                         SubjectCardItem(

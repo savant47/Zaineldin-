@@ -174,14 +174,16 @@ class InAppUpdateManager(context: Context) {
                         )
                     }
                 } else {
+                    val releasesWebUrl = "https://github.com/$slug/releases"
                     _updateState.value = UpdateCheckState.Error(
                         errorCode = "REPO_OR_RELEASE_NOT_FOUND",
-                        message = "لم يتم العثور على إصدار منشور بعد في المستودع ($slug). بمجرد مزامنة الكود مع GitHub سيقوم الـ Workflow ببناء ملف الـ APK تلقائياً."
+                        message = "تعذر جلب الإصدار عبر API (قد يكون المستودع Private أو لم يُنشر Release بعد). اضغط على الرابط بالأسفل لفتح صفحة Releases مباشرة وتحميل الـ APK."
                     )
                     AppDiagnosticsLogger.logWarning(
                         tag = "InAppUpdater",
                         code = "REPO_NOT_FOUND_404",
-                        message = "المستودع $slug غير عام أو لم يتم تشغيل GitHub Actions عليه بعد."
+                        message = "المستودع $slug: تأكد من اسم المستودع، أو اجعله Public في GitHub ليعمل التحديث التلقائي، أو افتح صفحة Releases يدوياً.",
+                        details = releasesWebUrl
                     )
                 }
             } catch (e: Exception) {
@@ -284,6 +286,6 @@ class InAppUpdateManager(context: Context) {
         private const val PREFS_NAME = "zein_ota_updater_prefs"
         private const val KEY_GITHUB_REPO = "github_repo_slug"
         private const val KEY_INSTALLED_RELEASE_TAG = "installed_release_tag"
-        const val DEFAULT_REPO_SLUG = "Savant47/zein-private-tutor"
+        const val DEFAULT_REPO_SLUG = "savant47/Zaineldin-"
     }
 }

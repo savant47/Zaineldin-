@@ -152,29 +152,45 @@ class TutorViewModel(
         initialValue = DataUiState.Success(emptyList())
     )
 
-    val profileState: StateFlow<DataUiState<StudentProfile>> = repository.observeProfile(currentUserId)
-        .map<StudentProfile?, DataUiState<StudentProfile>> { profile ->
-            DataUiState.Success(profile ?: StudentProfile(userId = currentUserId))
-        }
-        .catch { error ->
-            val firestoreError = generateSequence(error) { it.cause }
-                .filterIsInstance<FirebaseFirestoreException>()
-                .firstOrNull()
-            if (firestoreError == null && error is CancellationException) throw error
-            val rootError = firestoreError ?: error
-            AppDiagnosticsLogger.logWarning(
-                tag = TAG,
-                code = "PROFILE_OBSERVE_WARN",
-                message = "تعذر قراءة ملف الطالب من السحابة — تم تفعيل الملف الافتراضي لزين الدين.",
-                details = rootError.localizedMessage ?: ""
+    private val _localProfileOverride = MutableStateFlow<StudentProfile?>(null)
+
+    val profileState: StateFlow<DataUiState<StudentProfile>> = combine(
+        repository.observeProfile(currentUserId)
+            .map { it ?: StudentProfile(userId = currentUserId) }
+            .catch { error ->
+                val firestoreError = generateSequence(error) { it.cause }
+                    .filterIsInstance<FirebaseFirestoreException>()
+                    .firstOrNull()
+                if (firestoreError == null && error is CancellationException) throw error
+                val rootError = firestoreError ?: error
+                AppDiagnosticsLogger.logWarning(
+                    tag = TAG,
+                    code = "PROFILE_OBSERVE_WARN",
+                    message = "تعذر قراءة ملف الطالب من السحابة — تم تفعيل الملف الافتراضي لزين الدين.",
+                    details = rootError.localizedMessage ?: ""
+                )
+                emit(StudentProfile(userId = currentUserId))
+            },
+        _localProfileOverride
+    ) { repoProfile, localOverride ->
+        val resolved = if (localOverride != null) {
+            repoProfile.copy(
+                gradeLabel = localOverride.gradeLabel,
+                academicYear = localOverride.academicYear,
+                currentTerm = localOverride.currentTerm,
+                activeSubjectIds = localOverride.activeSubjectIds,
+                speechPitch = localOverride.speechPitch,
+                speechRate = localOverride.speechRate
             )
-            emit(DataUiState.Success(StudentProfile(userId = currentUserId)))
+        } else {
+            repoProfile
         }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000L),
-            initialValue = DataUiState.Success(StudentProfile(userId = currentUserId))
-        )
+        DataUiState.Success(resolved)
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.Eagerly,
+        initialValue = DataUiState.Success(StudentProfile(userId = currentUserId))
+    )
 
     private val defaultSeededLessons: List<CurriculumLesson> by lazy {
         OfficialCurriculumSeed.getInitialLessons(currentUserId)
@@ -421,16 +437,63 @@ class TutorViewModel(
         }
     }
 
-    fun addCustomLessonFromForm(
-        subject: SubjectType,
-        unitTitle: String,
-        lessonTitle: String,
-        officialContent: String,
-        keyTerms: String,
-        sourceBookName: String
+    fun updateAcademicSettings(
+        gradeLabel: String,
+        academicYear: String,
+        currentTerm: String,
+        activeSubjectIds: List<String>,
+        speechPitch: Float,
+        speechRate: Float
     ) {
-        if (officialContent.trim().length < 15) {
-            _statusBannerMessage.value = "يرجى إدخال نص مرجعي للدرس لا يقل عن 15 حرفاً لضمان دقة الشرح."
+        val current = (profileState.value as? DataUiState.Success)?.data ?: StudentProfile(userId = currentUserId)
+        val updatedLocal = current.copy(
+            gradeLabel = gradeLabel,
+            academicYear = academicYear,
+            currentTerm = currentTerm,
+            activeSubjectIds = activeSubjectIds,
+            speechPitch = speechPitch,
+            speechRate = speechRate
+        )
+        _localProfileOverride.value = updatedLocal
+        _statusBannerMessage.value = "تم تحديث السنة والترم والمواد المقررة وإعدادات الصوت بنجاح!"
+
+        viewModelScope.launch {
+            val result = repository.updateAcademicSettings(
+                gradeLabel = gradeLabel,
+                academicYear = academicYear,
+                currentTerm = currentTerm,
+                activeSubjectIds = activeSubjectIds,
+                speechPitch = speechPitch,
+                speechRate = speechRate
+            )
+            if (result.isSuccess) {
+                AppDiagnosticsLogger.logInfo(
+                    TAG,
+                    "ACADEMIC_SETTINGS_SAVED",
+                    "السنة: $academicYear | الترم: $currentTerm | الصف: $gradeLabel | المواد: ${activeSubjectIds.size}"
+                )
+            } else {
+                val err = result.exceptionOrNull()
+                AppDiagnosticsLogger.logWarning(
+                    TAG,
+                    "SETTINGS_UPDATE_OFFLINE",
+                    "تم حفظ الإعدادات محلياً في الذاكرة بنجاح.",
+                    err?.localizedMessage ?: ""
+                )
+            }
+        }
+    }
+
+    fun addCurriculumPdfDocument(
+        subject: SubjectType,
+        documentTitle: String,
+        term: String,
+        extractedContent: String,
+        fileName: String,
+        keyTermsSummary: String = ""
+    ) {
+        if (extractedContent.trim().length < 10) {
+            _statusBannerMessage.value = "محتوى الملف قصير جداً أو فارغ، يرجى التأكد من اختيار ملف صالح."
             return
         }
         val currentLessons = (lessonsState.value as? DataUiState.Success)?.data.orEmpty()
@@ -439,20 +502,35 @@ class TutorViewModel(
         viewModelScope.launch {
             val result = repository.addGroundedLesson(
                 subject = subject,
-                unitTitle = unitTitle,
-                lessonTitle = lessonTitle,
+                unitTitle = "محتوى مرفوع: $term",
+                lessonTitle = documentTitle,
                 lessonOrder = nextOrder,
-                officialContent = officialContent,
-                keyTerms = keyTerms,
-                sourceBookName = sourceBookName
+                officialContent = extractedContent,
+                keyTerms = keyTermsSummary.ifBlank { "مفاهيم ومصطلحات أساسية من $fileName" },
+                sourceBookName = "ملف PDF: $fileName ($term)"
             )
             if (result.isSuccess) {
-                _statusBannerMessage.value = "تم رفع الدرس الجديد إلى قاعدة بيانات المنهج في السحابة بنجاح!"
-                AppDiagnosticsLogger.logInfo(TAG, "CUSTOM_LESSON_ADDED", "تم حفظ درس جديد: $lessonTitle")
+                _statusBannerMessage.value = "تمت إضافة ملف ($fileName) لمنهج ${subject.titleAr} بنجاح!"
+                AppDiagnosticsLogger.logInfo(
+                    TAG,
+                    "PDF_BOOK_ADDED",
+                    "تم رفع وحفظ ملف منهج: $documentTitle للمادة: ${subject.titleAr}"
+                )
             } else {
                 val err = result.exceptionOrNull()
-                AppDiagnosticsLogger.logError(TAG, "CUSTOM_LESSON_ERR", "تعذر حفظ الدرس في السحابة", err)
-                _statusBannerMessage.value = "تعذر حفظ الدرس: ${err?.localizedMessage ?: ""}"
+                _statusBannerMessage.value = "تعذر حفظ محتوى الملف: ${err?.localizedMessage ?: ""}"
+                AppDiagnosticsLogger.logError(TAG, "PDF_INGEST_ERR", "تعذر حفظ ملف المنهج", err)
+            }
+        }
+    }
+
+    fun deleteLesson(lessonId: String) {
+        viewModelScope.launch {
+            val result = repository.deleteGroundedLesson(lessonId)
+            if (result.isSuccess) {
+                _statusBannerMessage.value = "تم حذف الوحدة الدراسية بنجاح"
+            } else {
+                _statusBannerMessage.value = "تعذر حذف الوحدة: ${result.exceptionOrNull()?.localizedMessage ?: ""}"
             }
         }
     }

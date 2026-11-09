@@ -15,6 +15,7 @@ import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
+import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.snapshots
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
@@ -268,6 +269,37 @@ class TutorRepository(
         }
     }
 
+    suspend fun updateAcademicSettings(
+        gradeLabel: String,
+        academicYear: String,
+        currentTerm: String,
+        activeSubjectIds: List<String>,
+        speechPitch: Float,
+        speechRate: Float
+    ): Result<Unit> {
+        val uid = requireUserId()
+        val docRef = db.collection("users").document(uid).collection("profile").document("main")
+        return try {
+            val payload = mapOf(
+                "userId" to uid,
+                "gradeLabel" to gradeLabel,
+                "academicYear" to academicYear,
+                "currentTerm" to currentTerm,
+                "activeSubjectIds" to activeSubjectIds,
+                "speechPitch" to speechPitch,
+                "speechRate" to speechRate,
+                "updatedAt" to FieldValue.serverTimestamp()
+            )
+            docRef.set(payload, SetOptions.merge()).await()
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.UPDATE, docRef.path)
+            Result.failure(e)
+        }
+    }
+
     suspend fun updateReminderSettings(
         enabled: Boolean,
         hour: Int,
@@ -387,6 +419,20 @@ class TutorRepository(
             throw e
         } catch (e: Exception) {
             handleFirestoreError(e, OperationType.CREATE, docRef.path)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteGroundedLesson(lessonId: String): Result<Unit> {
+        val uid = requireUserId()
+        val docRef = db.collection("users").document(uid).collection("lessons").document(lessonId)
+        return try {
+            docRef.delete().await()
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.DELETE, docRef.path)
             Result.failure(e)
         }
     }

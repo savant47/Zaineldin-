@@ -173,13 +173,49 @@ class OnDeviceVoiceManager(context: Context) {
         speakSegmentInternal(engine, text, locale, TextToSpeech.QUEUE_FLUSH)
     }
 
+    fun updateVoiceTuning(pitch: Float, rate: Float) {
+        try {
+            tts?.setPitch(pitch.coerceIn(0.7f, 1.3f))
+            tts?.setSpeechRate(rate.coerceIn(0.6f, 1.2f))
+        } catch (_: Exception) {}
+    }
+
+    fun openAndroidTtsSettings() {
+        try {
+            val intent = Intent("com.android.settings.TTS_SETTINGS").apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            appContext.startActivity(intent)
+        } catch (_: Exception) {
+            try {
+                val fallbackIntent = Intent(android.provider.Settings.ACTION_SETTINGS).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                appContext.startActivity(fallbackIntent)
+            } catch (_: Exception) {}
+        }
+    }
+
+    private fun cleanArabicTextForSpeech(input: String): String {
+        val unwantedChars = setOf('*', '#', '`', '_', '(', ')', '[', ']', '{', '}', '<', '>', '~', '^', '|')
+        val sb = StringBuilder(input.length)
+        for (ch in input) {
+            if (ch in unwantedChars) {
+                sb.append(' ')
+            } else {
+                sb.append(ch)
+            }
+        }
+        return sb.toString().replace(Regex("\\s+"), " ").trim()
+    }
+
     private fun speakSegmentInternal(
         engine: TextToSpeech,
         text: String,
         locale: Locale,
         queueMode: Int
     ) {
-        val cleanText = text.replace("*", "").replace("#", "").trim()
+        val cleanText = cleanArabicTextForSpeech(text)
         if (cleanText.isBlank()) return
         val availability = engine.isLanguageAvailable(locale)
         if (availability >= TextToSpeech.LANG_AVAILABLE) {

@@ -104,6 +104,11 @@ data class StudentProfile(
     val userId: String = "",
     val studentName: String = "زين الدين آسر الشربيني",
     val gradeLabel: String = "الصف الثاني الابتدائي لغات",
+    val academicYear: String = "٢٠٢٦ / ٢٠٢٧",
+    val currentTerm: String = "الترم الأول", // "الترم الأول" or "الترم الثاني"
+    val activeSubjectIds: List<String> = listOf("arabic", "religion", "math", "connect", "connect_plus"),
+    val speechPitch: Float = 1.0f,
+    val speechRate: Float = 0.85f,
     val studentLevel: String = StudentLevel.BEGINNER.code,
     val preferredLanguageMode: String = LanguageMode.BILINGUAL.code,
     val points: Long = 100L,
@@ -122,6 +127,8 @@ data class CurriculumLesson(
     val userId: String = "",
     val subjectId: String = SubjectType.ARABIC.id,
     val subjectNameAr: String = SubjectType.ARABIC.titleAr,
+    val term: String = "الترم الأول", // "الترم الأول" or "الترم الثاني"
+    val academicYear: String = "٢٠٢٦ / ٢٠٢٧",
     val unitTitle: String = "",
     val lessonTitle: String = "",
     val lessonOrder: Long = 1L,

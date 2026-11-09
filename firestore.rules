@@ -50,6 +50,11 @@ service cloud.firestore {
              data.reminderEnabled is bool &&
              data.reminderHour is int && data.reminderHour >= 0 && data.reminderHour <= 23 &&
              data.reminderMinute is int && data.reminderMinute >= 0 && data.reminderMinute <= 59 &&
+             (!('academicYear' in data) || (data.academicYear is string && data.academicYear.size() <= 50)) &&
+             (!('currentTerm' in data) || (data.currentTerm is string && data.currentTerm.size() <= 50)) &&
+             (!('activeSubjectIds' in data) || data.activeSubjectIds is list) &&
+             (!('speechPitch' in data) || (data.speechPitch is number)) &&
+             (!('speechRate' in data) || (data.speechRate is number)) &&
              data.createdAt is timestamp && data.createdAt <= request.time &&
              data.updatedAt is timestamp && data.updatedAt <= request.time;
     }
@@ -71,6 +76,8 @@ service cloud.firestore {
              data.keyTerms is string && data.keyTerms.size() >= 1 && data.keyTerms.size() <= 2000 &&
              data.sourceBookName is string && data.sourceBookName.size() >= 1 && data.sourceBookName.size() <= 200 &&
              data.isCompleted is bool &&
+             (!('term' in data) || (data.term is string && data.term.size() <= 50)) &&
+             (!('academicYear' in data) || (data.academicYear is string && data.academicYear.size() <= 50)) &&
              (!('lastAiExplanation' in data) || data.lastAiExplanation == null || (data.lastAiExplanation is string && data.lastAiExplanation.size() <= 15000)) &&
              data.createdAt is timestamp && data.createdAt <= request.time &&
              data.updatedAt is timestamp && data.updatedAt <= request.time;
@@ -89,12 +96,6 @@ service cloud.firestore {
                          'streakDays', 'reminderEnabled', 'reminderHour', 'reminderMinute',
                          'createdAt', 'updatedAt'
                        ]) &&
-                       incoming().keys().hasOnly([
-                         'userId', 'studentName', 'gradeLabel', 'studentLevel',
-                         'preferredLanguageMode', 'points', 'completedLessonsCount',
-                         'streakDays', 'reminderEnabled', 'reminderHour', 'reminderMinute',
-                         'createdAt', 'updatedAt'
-                       ]) &&
                        isValidStudentProfile(incoming(), userId);
 
       allow update: if isOwner(userId) &&
@@ -106,7 +107,9 @@ service cloud.firestore {
                        incoming().diff(existing()).affectedKeys().hasOnly([
                          'studentName', 'gradeLabel', 'studentLevel', 'preferredLanguageMode',
                          'points', 'completedLessonsCount', 'streakDays',
-                         'reminderEnabled', 'reminderHour', 'reminderMinute', 'updatedAt'
+                         'reminderEnabled', 'reminderHour', 'reminderMinute',
+                         'academicYear', 'currentTerm', 'activeSubjectIds',
+                         'speechPitch', 'speechRate', 'updatedAt'
                        ]);
 
       allow delete: if isOwner(userId) && isValidId(userId) && isValidId(profileId);

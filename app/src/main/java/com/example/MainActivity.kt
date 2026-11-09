@@ -397,18 +397,19 @@ fun AuthenticatedTutorApp(
                                 MainTab.CURRICULUM_AND_PYTHON -> {
                                     CurriculumCenterScreen(
                                         currentUserId = currentUserId,
+                                        profile = profile,
+                                        allLessons = lessons,
                                         totalSyncedLessonsCount = lessons.size,
                                         onSyncUploadedBooks = { tutorViewModel.syncAllUploadedBooks() },
                                         onRunSystemDiagnostics = { tutorViewModel.runSelfDiagnosticsCheck() },
-                                        onAddGroundedLesson = { subj, unit, title, content, terms, book ->
-                                            tutorViewModel.addCustomLessonFromForm(
-                                                subject = subj,
-                                                unitTitle = unit,
-                                                lessonTitle = lessonTitleFromForm(title),
-                                                officialContent = content,
-                                                keyTerms = terms,
-                                                sourceBookName = book
-                                            )
+                                        onUpdateAcademicSettings = { grade, year, term, subjects, pitch, rate ->
+                                            tutorViewModel.updateAcademicSettings(grade, year, term, subjects, pitch, rate)
+                                        },
+                                        onAddCurriculumPdfDocument = { subj, title, term, content, fileName, terms ->
+                                            tutorViewModel.addCurriculumPdfDocument(subj, title, term, content, fileName, terms)
+                                        },
+                                        onDeleteLesson = { lessonId ->
+                                            tutorViewModel.deleteLesson(lessonId)
                                         }
                                     )
                                 }

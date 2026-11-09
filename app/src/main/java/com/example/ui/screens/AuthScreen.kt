@@ -186,14 +186,14 @@ fun AuthScreen(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Text(
-                        text = "تطبيق المدرس الخصوصي\nلزين الدين آسر الشربيني\nالصف الثاني الابتدائي لغات",
+                        text = "تطبيق المدرس الخصوصي\nلزين الدين آسر الشربيني",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary,
                         textAlign = TextAlign.Center
                     )
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
                     Text(
                         text = "منصة تعليمية ذكية ثنائية اللغة (Bilingual LMS) تشرح الـ Math والـ English بالإنجليزية ثم توضح المعنى بالعربية فوراً، مع نطق واستماع صوتي مجاني ١٠٠٪ ومعتمدة حصرياً على كتب المنهج المدرسي.",
@@ -202,37 +202,7 @@ fun AuthScreen(
                         textAlign = TextAlign.Center
                     )
 
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Feature highlights in a clean, non-wrapping layout (fixes squished pills)
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            FeaturePill(
-                                modifier = Modifier.weight(1f),
-                                icon = Icons.Default.RecordVoiceOver,
-                                text = "صوت مجاني محلي ١٠٠٪"
-                            )
-                            FeaturePill(
-                                modifier = Modifier.weight(1f),
-                                icon = Icons.Default.AutoAwesome,
-                                text = "شرح ثنائي اللغات"
-                            )
-                        }
-                        FeaturePill(
-                            modifier = Modifier.fillMaxWidth(),
-                            icon = Icons.Default.CloudDone,
-                            text = "شامل ٢٤ وحدة وملاحق امتحانات الوزارة والمعاصر ٢٠٢٧"
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(24.dp))
 
                     Button(
                         onClick = onAuthSuccess,
@@ -257,28 +227,6 @@ fun AuthScreen(
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onPrimary,
-                            maxLines = 1
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Button(
-                        onClick = onAuthSuccess,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp)
-                            .testTag("continue_to_app_button"),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer
-                        )
-                    ) {
-                        Text(
-                            text = "متابعة إلى التطبيق",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
                             maxLines = 1
                         )
                     }
