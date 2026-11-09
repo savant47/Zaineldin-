@@ -3,7 +3,6 @@ package com.example.ui.screens
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -13,8 +12,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,13 +23,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Launch
-import androidx.compose.material.icons.automirrored.filled.MenuBook
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddCircle
-import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudDone
@@ -46,15 +40,12 @@ import androidx.compose.material.icons.filled.HealthAndSafety
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.VolumeUp
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -66,7 +57,6 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -77,6 +67,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -84,17 +75,12 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.BuildConfig
 import com.example.data.model.CurriculumLesson
 import com.example.data.model.StudentProfile
 import com.example.data.model.SubjectType
 import com.example.util.AppDiagnosticsLogger
-import com.example.util.InAppUpdateManager
 import com.example.util.LogSeverity
 import com.example.util.OnDeviceVoiceManager
-import com.example.util.UpdateCheckState
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.launch
 
 private data class UploadedBookOverview(
     val titleAr: String,
@@ -152,27 +138,25 @@ fun CurriculumCenterScreen(
     onDeleteLesson: (lessonId: String) -> Unit
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val updateManager = remember(context) { InAppUpdateManager(context) }
     val voiceManager = remember(context) { OnDeviceVoiceManager(context) }
-
-    val savedRepoSlug by updateManager.githubRepoSlug.collectAsStateWithLifecycle()
-    val savedGithubToken by updateManager.githubToken.collectAsStateWithLifecycle()
-    val updateState by updateManager.updateState.collectAsStateWithLifecycle()
     val diagnosticLogs by AppDiagnosticsLogger.logs.collectAsStateWithLifecycle()
 
-    var showSettingsDialog by rememberSaveable { mutableStateOf(false) }
+    // Academic Settings State
+    var selectedGrade by rememberSaveable(profile.gradeLabel) { mutableStateOf(profile.gradeLabel) }
+    var selectedYear by rememberSaveable(profile.academicYear) { mutableStateOf(profile.academicYear) }
+    var selectedTerm by rememberSaveable(profile.currentTerm) { mutableStateOf(profile.currentTerm) }
+    var activeSubjects by rememberSaveable(profile.activeSubjectIds) { mutableStateOf(profile.activeSubjectIds) }
+    var pitchVal by rememberSaveable(profile.speechPitch) { mutableFloatStateOf(profile.speechPitch) }
+    var rateVal by rememberSaveable(profile.speechRate) { mutableFloatStateOf(profile.speechRate) }
+    var settingsSavedNotice by remember { mutableStateOf<String?>(null) }
 
-    var githubRepoInput by rememberSaveable(savedRepoSlug) { mutableStateOf(savedRepoSlug) }
-    var githubTokenInput by rememberSaveable(savedGithubToken) { mutableStateOf(savedGithubToken) }
-    var updateActionNotice by remember { mutableStateOf<String?>(null) }
-
+    // Diagnostics / Error Log States
     var manualBugNoteInput by rememberSaveable { mutableStateOf("") }
     var reportCopiedNotice by remember { mutableStateOf<String?>(null) }
 
     // PDF Ingestion states
     var selectedPdfSubject by remember { mutableStateOf(SubjectType.MATH) }
-    var selectedPdfTerm by rememberSaveable { mutableStateOf(profile.currentTerm) }
+    var selectedPdfTerm by rememberSaveable(profile.currentTerm) { mutableStateOf(profile.currentTerm) }
     var pdfDocumentTitle by rememberSaveable { mutableStateOf("") }
     var pdfKeyTerms by rememberSaveable { mutableStateOf("") }
     var pdfContentText by rememberSaveable { mutableStateOf("") }
@@ -184,7 +168,6 @@ fun CurriculumCenterScreen(
     ) { uri: Uri? ->
         if (uri != null) {
             try {
-                // استخراج اسم الملف
                 var displayName = "curriculum_document.pdf"
                 context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
                     val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
@@ -197,14 +180,12 @@ fun CurriculumCenterScreen(
                     pdfDocumentTitle = displayName.removeSuffix(".pdf").replace("_", " ")
                 }
 
-                // قراءة محتوى الملف كنص (إذا كان text أو تدعيم استخراج المحتوى)
                 val stream = context.contentResolver.openInputStream(uri)
                 val rawBytes = stream?.readBytes() ?: ByteArray(0)
                 stream?.close()
 
                 val extracted = try {
                     val rawStr = String(rawBytes, Charsets.UTF_8)
-                    // تنظيف الأحرف غير المقروءة في حال ملف ثنائي
                     val cleanLines = rawStr.lines()
                         .filter { it.isNotBlank() && it.any { ch -> ch.isLetterOrDigit() } }
                         .joinToString("\n")
@@ -214,7 +195,7 @@ fun CurriculumCenterScreen(
                 }
 
                 pdfContentText = extracted
-                pdfStatusMessage = "تم اختيار ملف ($displayName) بنجاح - يمكنك مراجعة العنوان والنقر على حفظ لإضافته فوراً."
+                pdfStatusMessage = "تم اختيار ملف ($displayName) بنجاح - انقر على حفظ لاعتماده في الشرح والسبورة."
                 AppDiagnosticsLogger.logInfo("PdfPicker", "PDF_SELECTED", "تم اختيار الملف: $displayName")
             } catch (e: Exception) {
                 pdfStatusMessage = "تعذر قراءة الملف: ${e.localizedMessage ?: ""}"
@@ -230,319 +211,306 @@ fun CurriculumCenterScreen(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // 0. Header with Academic Settings Gear (ترس إعدادات السنة والترم والمواد)
+        // ١. الرأس الأنيق: إعدادات التطبيق والمناهج ⚙️
         item {
-            Surface(
-                color = MaterialTheme.colorScheme.primaryContainer,
-                shape = RoundedCornerShape(22.dp),
+            Card(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .padding(20.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(54.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
                             Icon(
-                                imageVector = Icons.Default.School,
+                                imageVector = Icons.Default.Settings,
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "${profile.gradeLabel} • ${profile.currentTerm}",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.size(28.dp)
                             )
                         }
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "العام الدراسي: ${profile.academicYear} | ${profile.activeSubjectIds.size} مواد مقررة",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                        )
                     }
 
-                    IconButton(
-                        onClick = { showSettingsDialog = true },
-                        modifier = Modifier
-                            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp))
-                            .testTag("academic_settings_gear_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "ترس إعدادات السنة والترم والمواد",
-                            tint = MaterialTheme.colorScheme.primary
+                    Spacer(modifier = Modifier.width(16.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "الإعدادات وإدارة المناهج",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "${profile.gradeLabel} • ${profile.currentTerm} (${profile.academicYear})",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
                         )
                     }
                 }
             }
         }
 
-        // 1. In-App GitHub OTA Update Card (التحديث الداخلي التلقائي بعد المزامنة مع GitHub)
+        // ٢. بطاقة إعدادات المرحلة الدراسية والترم والمواد المقررة (Academic Settings Card)
         item {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .testTag("in_app_github_update_card"),
-                shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.65f)
-                ),
+                    .testTag("academic_settings_card"),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                        .padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            imageVector = Icons.Default.SystemUpdate,
+                            imageVector = Icons.Default.School,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(24.dp)
                         )
                         Spacer(modifier = Modifier.width(10.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "التحديث الداخلي التلقائي عبر GitHub 🚀",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "الإصدار الحالي المثبت: v${BuildConfig.VERSION_NAME} (كود البناء: ${BuildConfig.VERSION_CODE})",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                        Text(
+                            text = "السنة والترم والمواد المقررة لزين الدين",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
 
-                    Surface(
-                        color = MaterialTheme.colorScheme.surface,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Text(
-                                text = "⚙️ تم إعداد ملف الـ Workflow التلقائي في المشروع:\n(.github/workflows/android-release-ota.yml + version.json)",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Text(
-                                text = "بمجرد عمل مزامنة (Push/Sync) مع GitHub، يقوم GitHub Actions تلقائياً ببناء ملف الـ APK الجديد ونشره في Releases ليظهر لك إشعار التحديث هنا فوراً.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-
-                    OutlinedTextField(
-                        value = githubRepoInput,
-                        onValueChange = { githubRepoInput = it },
-                        label = { Text("اسم مستودع GitHub (مثال: username/repo)") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("github_repo_input")
+                    // أ. اختيار الصف الدراسي (الصفوف الابتدائية ١-٦)
+                    Text(
+                        text = "١. الصف الدراسي (الصفوف الابتدائية ١ إلى ٦ لغات):",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
                     )
-
-                    // شرح وتوجيه واضح جداً بخصوص المستودع الخاص (Private)
-                    Surface(
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.fillMaxWidth()
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Column(
-                            modifier = Modifier.padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text(
-                                text = "🔒 هام: هل مستودع GitHub مضبوط كـ Private (خاص)؟",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Text(
-                                text = "إذا كان المستودع Private، فإن GitHub يمنع هواتف الأندرويد من جلب الـ APK ويعطي خطأ 404.\n" +
-                                        "• للحل بضغطة واحدة: اجعل المستودع Public (عام) في GitHub عبر الزر أدناه.\n" +
-                                        "• أو: اكتب رمز GitHub Token في الخانة التالية إذا رغبت بإبقائه خاصاً.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-
-                            OutlinedButton(
-                                onClick = {
-                                    val targetSlug = githubRepoInput.trim().ifBlank { InAppUpdateManager.DEFAULT_REPO_SLUG }
-                                    val settingsUrl = "https://github.com/$targetSlug/settings"
-                                    try {
-                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(settingsUrl)).apply {
-                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                        }
-                                        context.startActivity(intent)
-                                    } catch (_: Exception) {}
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.Launch,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp)
+                            FilterChip(
+                                modifier = Modifier.weight(1f),
+                                selected = selectedGrade == "الصف الأول الابتدائي لغات",
+                                onClick = { selectedGrade = "الصف الأول الابتدائي لغات" },
+                                label = { Text("١ب (الصف الأول)") },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("فتح إعدادات المستودع في GitHub (لتحويله إلى Public)")
+                            )
+                            FilterChip(
+                                modifier = Modifier.weight(1f),
+                                selected = selectedGrade == "الصف الثاني الابتدائي لغات",
+                                onClick = { selectedGrade = "الصف الثاني الابتدائي لغات" },
+                                label = { Text("٢ب (الصف الثاني)") },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                                )
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            FilterChip(
+                                modifier = Modifier.weight(1f),
+                                selected = selectedGrade == "الصف الثالث الابتدائي لغات",
+                                onClick = { selectedGrade = "الصف الثالث الابتدائي لغات" },
+                                label = { Text("٣ب (الصف الثالث)") },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                                )
+                            )
+                            FilterChip(
+                                modifier = Modifier.weight(1f),
+                                selected = selectedGrade == "الصف الرابع الابتدائي لغات",
+                                onClick = { selectedGrade = "الصف الرابع الابتدائي لغات" },
+                                label = { Text("٤ب (الصف الرابع)") },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                                )
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            FilterChip(
+                                modifier = Modifier.weight(1f),
+                                selected = selectedGrade == "الصف الخامس الابتدائي لغات",
+                                onClick = { selectedGrade = "الصف الخامس الابتدائي لغات" },
+                                label = { Text("٥ب (الصف الخامس)") },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                                )
+                            )
+                            FilterChip(
+                                modifier = Modifier.weight(1f),
+                                selected = selectedGrade == "الصف السادس الابتدائي لغات",
+                                onClick = { selectedGrade = "الصف السادس الابتدائي لغات" },
+                                label = { Text("٦ب (الصف السادس)") },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                                )
+                            )
+                        }
+                    }
+
+                    // ب. اختيار الترم (الترم الأول الحالي / الترم الثاني)
+                    Text(
+                        text = "٢. الفصل الدراسي (الترم):",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilterChip(
+                            modifier = Modifier.weight(1f),
+                            selected = selectedTerm == "الترم الأول",
+                            onClick = { selectedTerm = "الترم الأول" },
+                            label = { Text("الترم الأول (الحالي)") },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                            )
+                        )
+                        FilterChip(
+                            modifier = Modifier.weight(1f),
+                            selected = selectedTerm == "الترم الثاني",
+                            onClick = { selectedTerm = "الترم الثاني" },
+                            label = { Text("الترم الثاني") },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                            )
+                        )
+                    }
+
+                    // ج. العام الدراسي
+                    Text(
+                        text = "٣. العام الدراسي:",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf("٢٠٢٥ / ٢٠٢٦", "٢٠٢٦ / ٢٠٢٧", "٢٠٢٧ / ٢٠٢٨").forEach { yr ->
+                            FilterChip(
+                                modifier = Modifier.weight(1f),
+                                selected = selectedYear == yr,
+                                onClick = { selectedYear = yr },
+                                label = { Text(yr) }
+                            )
+                        }
+                    }
+
+                    // د. المواد المقررة للتدريس
+                    Text(
+                        text = "٤. المواد المقررة للتدريس (${activeSubjects.size} مواد مفعّلة):",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    SubjectType.entries.forEach { subj ->
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = Color(subj.accentHex),
+                                        modifier = Modifier.size(10.dp)
+                                    ) {}
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = subj.titleAr,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                                Switch(
+                                    checked = activeSubjects.contains(subj.id),
+                                    onCheckedChange = { isChecked ->
+                                        activeSubjects = if (isChecked) {
+                                            activeSubjects + subj.id
+                                        } else {
+                                            if (activeSubjects.size > 1) activeSubjects - subj.id else activeSubjects
+                                        }
+                                    }
+                                )
                             }
                         }
                     }
 
-                    OutlinedTextField(
-                        value = githubTokenInput,
-                        onValueChange = { githubTokenInput = it },
-                        label = { Text("رمز GitHub Token (اختياري - فقط في حال إبقاء المستودع Private)") },
-                        placeholder = { Text("ghp_xxxxxxxxxxxxxxxxxxxx") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("github_token_input")
-                    )
-
+                    // زر حفظ الإعدادات
                     Button(
                         onClick = {
-                            scope.launch {
-                                updateManager.checkForUpdates(githubRepoInput, githubTokenInput)
-                            }
+                            onUpdateAcademicSettings(
+                                selectedGrade,
+                                selectedYear,
+                                selectedTerm,
+                                activeSubjects,
+                                pitchVal,
+                                rateVal
+                            )
+                            settingsSavedNotice = "تم حفظ الصف ($selectedGrade) و($selectedTerm) والعام ($selectedYear) بنجاح!"
                         },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(50.dp)
-                            .testTag("check_github_update_button"),
+                            .testTag("save_academic_settings_button"),
                         shape = RoundedCornerShape(14.dp)
                     ) {
-                        Icon(imageVector = Icons.Default.CloudSync, contentDescription = null)
+                        Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("فحص وجود تحديث جديد على GitHub الآن")
+                        Text("حفظ وتطبيق الإعدادات الآن")
                     }
 
-                    when (val state = updateState) {
-                        is UpdateCheckState.Idle -> {}
-                        is UpdateCheckState.Checking -> {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center
-                            ) {
-                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("جاري الاتصال بـ GitHub وفحص أحدث نسخة APK...")
-                            }
-                        }
-                        is UpdateCheckState.UpdateAvailable -> {
-                            Surface(
-                                color = MaterialTheme.colorScheme.primaryContainer,
-                                shape = RoundedCornerShape(16.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(14.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Text(
-                                        text = "🎉 يتوفر تحديث جديد: ${state.releaseTitle} (${state.latestVersionName})",
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                                    )
-                                    Text(
-                                        text = state.changelog,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                                    )
-                                    Button(
-                                        onClick = {
-                                            updateActionNotice = updateManager.downloadAndInstallUpdate(
-                                                apkUrl = state.apkDownloadUrl,
-                                                versionLabel = state.latestVersionName
-                                            )
-                                        },
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .testTag("download_install_apk_button"),
-                                        shape = RoundedCornerShape(12.dp)
-                                    ) {
-                                        Icon(imageVector = Icons.Default.SystemUpdate, contentDescription = null)
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text("تحميل وتثبيت التحديث الآن (APK)")
-                                    }
-                                }
-                            }
-                        }
-                        is UpdateCheckState.UpToDate -> {
-                            Surface(
-                                color = MaterialTheme.colorScheme.surface,
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(
-                                    text = "✅ ${state.message}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.padding(12.dp)
-                                )
-                            }
-                        }
-                        is UpdateCheckState.Error -> {
-                            Surface(
-                                color = MaterialTheme.colorScheme.errorContainer,
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(12.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Text(
-                                        text = "ℹ️ [${state.errorCode}] ${state.message}",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onErrorContainer
-                                    )
-                                    OutlinedButton(
-                                        onClick = {
-                                            val targetSlug = githubRepoInput.trim().ifBlank { InAppUpdateManager.DEFAULT_REPO_SLUG }
-                                            val releasesUrl = "https://github.com/$targetSlug/releases"
-                                            try {
-                                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(releasesUrl)).apply {
-                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                                }
-                                                context.startActivity(intent)
-                                            } catch (_: Exception) {}
-                                        },
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Icon(imageVector = Icons.AutoMirrored.Filled.Launch, contentDescription = null)
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text("فتح صفحة Releases على GitHub للتحميل المباشر")
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    if (updateActionNotice != null) {
+                    if (settingsSavedNotice != null) {
                         Text(
-                            text = updateActionNotice.orEmpty(),
-                            style = MaterialTheme.typography.labelMedium,
+                            text = settingsSavedNotice.orEmpty(),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
                         )
                     }
@@ -550,320 +518,99 @@ fun CurriculumCenterScreen(
             }
         }
 
-        // 2. Error Log & Bug Report Card (زرار إضافة أخطاء + سجل اللوج + نسخ الريبورت لإرساله للمطور)
+        // ٣. بطاقة نبرة وسرعة صوت المدرس الطبيعي (Voice Tuning Card)
         item {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .testTag("error_log_and_report_card"),
-                shape = RoundedCornerShape(22.dp),
+                    .testTag("teacher_voice_tuning_card"),
+                shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(18.dp),
+                        .padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                            Icon(
-                                imageVector = Icons.Default.BugReport,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.size(28.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column {
-                                Text(
-                                    text = "سجل الأخطاء وتقارير الفحص (Log & Error Report)",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = "اعرف كود الخطأ بالضبط بعد تسطيب الـ APK وانسخه بضغطة واحدة للإصلاح",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-
-                        IconButton(
-                            onClick = { AppDiagnosticsLogger.clearLogs() },
-                            modifier = Modifier.testTag("clear_logs_button")
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.DeleteSweep,
-                                contentDescription = "مسح اللوج"
-                            )
-                        }
-                    }
-
-                    // إضافة ملاحظة أو بلاغ خطأ يدوي
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = manualBugNoteInput,
-                            onValueChange = { manualBugNoteInput = it },
-                            label = { Text("سجّل ملاحظة أو مشكلة واجهتك في الـ APK...") },
-                            modifier = Modifier
-                                .weight(1f)
-                                .testTag("manual_bug_note_input"),
-                            singleLine = true,
-                            shape = RoundedCornerShape(14.dp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.RecordVoiceOver,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
                         )
-                        Button(
-                            onClick = {
-                                if (manualBugNoteInput.isNotBlank()) {
-                                    AppDiagnosticsLogger.addManualUserBugReport(
-                                        screenName = "UserAPKReport",
-                                        userDescription = manualBugNoteInput
-                                    )
-                                    manualBugNoteInput = ""
-                                    reportCopiedNotice = "تمت إضافة ملاحظتك إلى سجل الأخطاء بنجاح!"
-                                }
-                            },
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier
-                                .height(54.dp)
-                                .testTag("add_bug_note_button")
-                        ) {
-                            Text("إضافة خطأ")
-                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "نبرة وسرعة صوت المدرس العربي الطبيعي",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
 
-                    // أزرار الفحص الذاتي ونسخ التقرير الكامل
+                    Text(
+                        text = "سرعة الإلقاء والشرح: ${"%.2f".format(rateVal)}x (هادئ وواضح لطفل المرحلة الابتدائية)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Slider(
+                        value = rateVal,
+                        onValueChange = {
+                            rateVal = it
+                            voiceManager.updateVoiceTuning(pitchVal, it)
+                        },
+                        valueRange = 0.7f..1.15f
+                    )
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         OutlinedButton(
-                            onClick = onRunSystemDiagnostics,
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(48.dp)
-                                .testTag("run_self_diagnostics_button"),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.HealthAndSafety,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("فحص النظام الآن")
-                        }
-
-                        Button(
                             onClick = {
-                                val fullReport = AppDiagnosticsLogger.buildFullReportText()
-                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                clipboard.setPrimaryClip(
-                                    ClipData.newPlainText("ZeinTutor_Error_Report", fullReport)
+                                voiceManager.speakSingleText(
+                                    "أهلاً بك يا زين الدين! نحن الآن في $selectedGrade $selectedTerm، هل أنت مستعد للدرس؟",
+                                    preferEnglish = false
                                 )
-                                reportCopiedNotice = "تم نسخ تقرير الأخطاء واللوج بالكامل! الصقه في الشات لإصلاحه فوراً."
                             },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.error
-                            ),
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(48.dp)
-                                .testTag("copy_full_error_report_button"),
+                            modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(12.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.ContentCopy,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
+                            Icon(imageVector = Icons.Default.VolumeUp, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("نسخ ريبورت الأخطاء")
+                            Text("تجربة صوت المدرس")
                         }
-                    }
 
-                    if (reportCopiedNotice != null) {
-                        Text(
-                            text = reportCopiedNotice.orEmpty(),
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-
-                    // عرض قائمة اللوج والأكواد
-                    Surface(
-                        color = Color(0xFF0D1914),
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        OutlinedButton(
+                            onClick = { voiceManager.openAndroidTtsSettings() },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp)
                         ) {
-                            Text(
-                                text = "سجل الأحداث والأكواد البرمجية (${diagnosticLogs.size} سجل):",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = Color(0xFFFCD34D),
-                                fontWeight = FontWeight.Bold
-                            )
-                            diagnosticLogs.take(15).forEach { entry ->
-                                val badgeColor = when (entry.severity) {
-                                    LogSeverity.ERROR, LogSeverity.USER_REPORT -> Color(0xFFFCA5A5)
-                                    LogSeverity.WARN -> Color(0xFFFDE68A)
-                                    LogSeverity.INFO -> Color(0xFFA7F3D0)
-                                }
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(Color(0x1AFFFFFF), RoundedCornerShape(8.dp))
-                                        .padding(8.dp)
-                                ) {
-                                    Text(
-                                        text = "[${entry.timestamp}] [${entry.severity.badgeCode}] ${entry.tag} • Code: ${entry.errorCode}",
-                                        fontFamily = FontFamily.Monospace,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = badgeColor,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Text(
-                                        text = entry.message,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = Color.White
-                                    )
-                                    if (entry.technicalDetails.isNotBlank()) {
-                                        Text(
-                                            text = entry.technicalDetails,
-                                            fontFamily = FontFamily.Monospace,
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = Color(0xFFD1D5DB)
-                                        )
-                                    }
-                                }
-                            }
+                            Icon(imageVector = Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("إعدادات محرك Google TTS")
                         }
                     }
                 }
             }
         }
 
-        // 3. Uploaded School PDF Books Overview & One-Tap Sync Card
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
-                ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.CloudDone,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column {
-                            Text(
-                                text = "الكتب المدرسية المرفوعة في قاعدة البيانات (٢٠٢٦/٢٠٢٧)",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "إجمالي الوحدات والدروس المحفوظة حالياً: $totalSyncedLessonsCount وحدة ودرساً مرجعياً",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-
-                    UPLOADED_SCHOOL_BOOKS.forEach { book ->
-                        Surface(
-                            color = MaterialTheme.colorScheme.surface,
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Default.CheckCircle,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = book.titleAr,
-                                        style = MaterialTheme.typography.labelLarge,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
-                                Text(
-                                    text = "الملفات: ${book.sourceFileNames}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Text(
-                                    text = book.unitsSummaryAr,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
-
-                    Button(
-                        onClick = onSyncUploadedBooks,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(50.dp)
-                            .testTag("sync_uploaded_books_button"),
-                        shape = RoundedCornerShape(14.dp)
-                    ) {
-                        Icon(imageVector = Icons.Default.CloudSync, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("مزامنة وتحديث جميع الكتب المرفوعة في قاعدة البيانات الآن")
-                    }
-                }
-            }
-        }
-
-        // 4. مركز رفع وإدارة ملفات المنهج والكتب الدراسية بصيغة PDF (PDF Curriculum Documents Center)
+        // ٤. مركز رفع وإدارة كتب وملفات المنهج بصيغة PDF (PDF Curriculum Documents Center)
         item {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("pdf_curriculum_upload_card"),
-                shape = RoundedCornerShape(22.dp),
+                shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(18.dp),
+                        .padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -873,7 +620,7 @@ fun CurriculumCenterScreen(
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(26.dp)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
                                 text = "مركز رفع وتعديل كتب وملفات المنهج (PDF)",
@@ -881,7 +628,7 @@ fun CurriculumCenterScreen(
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "ارفع ملفات الـ PDF للترم الحالي والترم الثاني والعام القادم ليقوم الذكاء الاصطناعي بدراستها واعتمادها كمرجع حصري للتدريس",
+                                text = "ارفع ملفات المناهج والمذكرات ليعتمدها الذكاء الاصطناعي كمرجع أساسي للشرح",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -955,24 +702,12 @@ fun CurriculumCenterScreen(
                             }
 
                             if (selectedPdfFileName != null) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.CheckCircle,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "الملف المختار: $selectedPdfFileName",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                }
+                                Text(
+                                    text = "الملف المختار: $selectedPdfFileName",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
                             }
                         }
                     }
@@ -980,34 +715,24 @@ fun CurriculumCenterScreen(
                     OutlinedTextField(
                         value = pdfDocumentTitle,
                         onValueChange = { pdfDocumentTitle = it },
-                        label = { Text("اسم الكتاب أو المذكرة (مثال: كتاب المدرسة ترم ثاني أو ملحق مراجعة نهائية)") },
+                        label = { Text("عنوان الكتاب أو المذكرة (مثال: كتاب المعاصر ماث الوحدة الثالثة)") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .testTag("pdf_title_input"),
-                        singleLine = true
+                            .testTag("pdf_doc_title_input")
                     )
 
                     OutlinedTextField(
                         value = pdfKeyTerms,
                         onValueChange = { pdfKeyTerms = it },
-                        label = { Text("ملاحظات ومصطلحات رئيسية في الملف (اختياري)") },
+                        label = { Text("كلمات مفتاحية ومصطلحات رئيسية (اختياري)") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .testTag("pdf_terms_input"),
-                        singleLine = true
+                            .testTag("pdf_key_terms_input")
                     )
-
-                    if (pdfContentText.isNotBlank()) {
-                        OutlinedTextField(
-                            value = pdfContentText,
-                            onValueChange = { pdfContentText = it },
-                            label = { Text("محتوى المنهج المستخرج والمدروس من الملف") },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(120.dp),
-                            maxLines = 6
-                        )
-                    }
 
                     if (pdfStatusMessage != null) {
                         Text(
@@ -1024,7 +749,7 @@ fun CurriculumCenterScreen(
                             }
                             val finalFileName = selectedPdfFileName ?: "uploaded_manual_curriculum.pdf"
                             val finalContent = pdfContentText.ifBlank {
-                                "ملف منهج مقرر لـ ${selectedPdfSubject.titleAr} (${selectedPdfTerm}) - يحتوي على الشروحات والأنشطة والتقييمات للعام الدراسي ${profile.academicYear}."
+                                "ملف منهج مقرر لـ ${selectedPdfSubject.titleAr} ($selectedPdfTerm) - يحتوي على الشروحات والأنشطة والتقييمات للعام الدراسي ${profile.academicYear}."
                             }
                             onAddCurriculumPdfDocument(
                                 selectedPdfSubject,
@@ -1051,10 +776,10 @@ fun CurriculumCenterScreen(
                         Text("حفظ الكتاب في قاعدة بيانات الذكاء الاصطناعي")
                     }
 
-                    // قائمة الملفات والدروس المضافة مؤخراً
+                    // قائمة الملفات المضافة يدوياً
                     val customUploadedLessons = allLessons.filter { it.unitTitle.startsWith("محتوى مرفوع") || it.sourceBookName.startsWith("ملف PDF") }
                     if (customUploadedLessons.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "ملفات ومذكرات الـ PDF المضافة يدوياً (${customUploadedLessons.size}):",
                             style = MaterialTheme.typography.labelLarge,
@@ -1069,7 +794,7 @@ fun CurriculumCenterScreen(
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(10.dp),
+                                        .padding(12.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
@@ -1102,260 +827,299 @@ fun CurriculumCenterScreen(
                 }
             }
         }
-    }
 
-    // =========================================================================
-    // نافذة ترس الإعدادات: السنة الدراسية والترم والمواد المقررة والصوت العربي
-    // =========================================================================
-    if (showSettingsDialog) {
-        var selectedGrade by rememberSaveable { mutableStateOf(profile.gradeLabel) }
-        var selectedYear by rememberSaveable { mutableStateOf(profile.academicYear) }
-        var selectedTerm by rememberSaveable { mutableStateOf(profile.currentTerm) }
-        var activeSubjects by rememberSaveable { mutableStateOf(profile.activeSubjectIds) }
-        var pitchVal by rememberSaveable { mutableFloatStateOf(profile.speechPitch) }
-        var rateVal by rememberSaveable { mutableFloatStateOf(profile.speechRate) }
-
-        AlertDialog(
-            onDismissRequest = { showSettingsDialog = false },
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "إعدادات السنة والترم والمواد المقررة",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            },
-            text = {
+        // ٥. بطاقة الكتب المدرسية المعتمدة في النظام (School Books Catalog)
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                        .padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // ١. اختيار الصف الدراسي (الصفوف الابتدائية كاملة من الأول إلى السادس)
-                    Text(
-                        text = "الصف الدراسي (الصفوف الابتدائية ١-٦):",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            FilterChip(
-                                modifier = Modifier.weight(1f),
-                                selected = selectedGrade == "الصف الأول الابتدائي لغات",
-                                onClick = { selectedGrade = "الصف الأول الابتدائي لغات" },
-                                label = { Text("١ب (الأول)") }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.CloudDone,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "الكتب المدرسية المدمجة في قاعدة البيانات",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
                             )
-                            FilterChip(
-                                modifier = Modifier.weight(1f),
-                                selected = selectedGrade == "الصف الثاني الابتدائي لغات",
-                                onClick = { selectedGrade = "الصف الثاني الابتدائي لغات" },
-                                label = { Text("٢ب (الثاني)") }
-                            )
-                        }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            FilterChip(
-                                modifier = Modifier.weight(1f),
-                                selected = selectedGrade == "الصف الثالث الابتدائي لغات",
-                                onClick = { selectedGrade = "الصف الثالث الابتدائي لغات" },
-                                label = { Text("٣ب (الثالث)") }
-                            )
-                            FilterChip(
-                                modifier = Modifier.weight(1f),
-                                selected = selectedGrade == "الصف الرابع الابتدائي لغات",
-                                onClick = { selectedGrade = "الصف الرابع الابتدائي لغات" },
-                                label = { Text("٤ب (الرابع)") }
-                            )
-                        }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            FilterChip(
-                                modifier = Modifier.weight(1f),
-                                selected = selectedGrade == "الصف الخامس الابتدائي لغات",
-                                onClick = { selectedGrade = "الصف الخامس الابتدائي لغات" },
-                                label = { Text("٥ب (الخامس)") }
-                            )
-                            FilterChip(
-                                modifier = Modifier.weight(1f),
-                                selected = selectedGrade == "الصف السادس الابتدائي لغات",
-                                onClick = { selectedGrade = "الصف السادس الابتدائي لغات" },
-                                label = { Text("٦ب (السادس)") }
+                            Text(
+                                text = "إجمالي الوحدات والدروس المرجعية: $totalSyncedLessonsCount وحدة ودرساً",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
 
-                    // ٢. الترم الدراسي (متاح التبديل والاختيار في أي وقت)
-                    Text(
-                        text = "الفصل الدراسي (الترم):",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold
-                    )
+                    UPLOADED_SCHOOL_BOOKS.forEach { book ->
+                        Surface(
+                            color = MaterialTheme.colorScheme.surface,
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = book.titleAr,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                                Text(
+                                    text = "الملفات: ${book.sourceFileNames}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = book.unitsSummaryAr,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+
+                    Button(
+                        onClick = onSyncUploadedBooks,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .testTag("sync_uploaded_books_button"),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Icon(imageVector = Icons.Default.CloudSync, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("مزامنة وتحديث جميع الكتب المدمجة")
+                    }
+                }
+            }
+        }
+
+        // ٦. بطاقة فحص النظام وسجل الأخطاء والتقارير (Diagnostics & Error Report)
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("error_log_and_report_card"),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Icon(
+                                imageVector = Icons.Default.BugReport,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text(
+                                    text = "سجل الفحص والتشخيص (Diagnostics Log)",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "انسخ تقرير الفحص بنقرة واحدة عند مواجهة أي مشكلة",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        IconButton(
+                            onClick = { AppDiagnosticsLogger.clearLogs() },
+                            modifier = Modifier.testTag("clear_logs_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DeleteSweep,
+                                contentDescription = "مسح اللوج"
+                            )
+                        }
+                    }
+
+                    // إضافة ملاحظة يدوية
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = manualBugNoteInput,
+                            onValueChange = { manualBugNoteInput = it },
+                            label = { Text("سجّل ملاحظة أو مشكلة واجهتك...") },
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("manual_bug_note_input"),
+                            singleLine = true,
+                            shape = RoundedCornerShape(14.dp)
+                        )
+                        Button(
+                            onClick = {
+                                if (manualBugNoteInput.isNotBlank()) {
+                                    AppDiagnosticsLogger.addManualUserBugReport(
+                                        screenName = "UserReport",
+                                        userDescription = manualBugNoteInput
+                                    )
+                                    manualBugNoteInput = ""
+                                    reportCopiedNotice = "تمت إضافة ملاحظتك بنجاح!"
+                                }
+                            },
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier
+                                .height(52.dp)
+                                .testTag("add_bug_note_button")
+                        ) {
+                            Text("إضافة")
+                        }
+                    }
+
+                    // أزرار الفحص والنسخ
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        FilterChip(
-                            modifier = Modifier.weight(1f),
-                            selected = selectedTerm == "الترم الأول",
-                            onClick = { selectedTerm = "الترم الأول" },
-                            label = { Text("الترم الأول (الحالي)") }
-                        )
-                        FilterChip(
-                            modifier = Modifier.weight(1f),
-                            selected = selectedTerm == "الترم الثاني",
-                            onClick = { selectedTerm = "الترم الثاني" },
-                            label = { Text("الترم الثاني") }
-                        )
-                    }
-
-                    // ٣. العام الدراسي
-                    Text(
-                        text = "العام الدراسي:",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        FilterChip(
-                            modifier = Modifier.weight(1f),
-                            selected = selectedYear == "٢٠٢٥ / ٢٠٢٦",
-                            onClick = { selectedYear = "٢٠٢٥ / ٢٠٢٦" },
-                            label = { Text("٢٠٢٥/٢٦") }
-                        )
-                        FilterChip(
-                            modifier = Modifier.weight(1f),
-                            selected = selectedYear == "٢٠٢٦ / ٢٠٢٧",
-                            onClick = { selectedYear = "٢٠٢٦ / ٢٠٢٧" },
-                            label = { Text("٢٠٢٦/٢٧") }
-                        )
-                        FilterChip(
-                            modifier = Modifier.weight(1f),
-                            selected = selectedYear == "٢٠٢٧ / ٢٠٢٨",
-                            onClick = { selectedYear = "٢٠٢٧ / ٢٠٢٨" },
-                            label = { Text("٢٠٢٧/٢٨") }
-                        )
-                    }
-
-                    // ٤. المواد المقررة النشطة
-                    Text(
-                        text = "المواد المقررة للتدريس:",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                    SubjectType.entries.forEach { subj ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                        OutlinedButton(
+                            onClick = onRunSystemDiagnostics,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(46.dp)
+                                .testTag("run_self_diagnostics_button"),
+                            shape = RoundedCornerShape(12.dp)
                         ) {
-                            Text(
-                                text = subj.titleAr,
-                                style = MaterialTheme.typography.bodyMedium
+                            Icon(
+                                imageVector = Icons.Default.HealthAndSafety,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
                             )
-                            Switch(
-                                checked = activeSubjects.contains(subj.id),
-                                onCheckedChange = { isChecked ->
-                                    activeSubjects = if (isChecked) {
-                                        activeSubjects + subj.id
-                                    } else {
-                                        if (activeSubjects.size > 1) activeSubjects - subj.id else activeSubjects
-                                    }
-                                }
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("فحص النظام")
+                        }
+
+                        Button(
+                            onClick = {
+                                val fullReport = AppDiagnosticsLogger.buildFullReportText()
+                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                clipboard.setPrimaryClip(
+                                    ClipData.newPlainText("ZeinTutor_Report", fullReport)
+                                )
+                                reportCopiedNotice = "تم نسخ تقرير الأخطاء واللوج بنجاح!"
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.error
+                            ),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(46.dp)
+                                .testTag("copy_full_error_report_button"),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ContentCopy,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
                             )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("نسخ التقرير")
                         }
                     }
 
-                    // ٥. إعدادات الصوت العربي الطبيعي
+                    if (reportCopiedNotice != null) {
+                        Text(
+                            text = reportCopiedNotice.orEmpty(),
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
+                    // نافذة عرض السجلات
                     Surface(
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFF0F1E17),
+                        shape = RoundedCornerShape(14.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(
-                            modifier = Modifier.padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.RecordVoiceOver,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "نبرة وسرعة صوت المدرس (صوت طبيعي فصيح):",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
                             Text(
-                                text = "سرعة الإلقاء: ${"%.2f".format(rateVal)}x (هادئ وواضح لطفل لغات)",
-                                style = MaterialTheme.typography.labelSmall
+                                text = "سجل الأحداث البرمجية (${diagnosticLogs.size} سجل):",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color(0xFFFCD34D),
+                                fontWeight = FontWeight.Bold
                             )
-                            Slider(
-                                value = rateVal,
-                                onValueChange = {
-                                    rateVal = it
-                                    voiceManager.updateVoiceTuning(pitchVal, it)
-                                },
-                                valueRange = 0.7f..1.1f
-                            )
-                            OutlinedButton(
-                                onClick = { voiceManager.openAndroidTtsSettings() },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Icon(imageVector = Icons.Default.Tune, contentDescription = null)
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("فتح إعدادات تحويل النص لكلام في الهاتف (Google TTS)")
+                            diagnosticLogs.take(10).forEach { entry ->
+                                val badgeColor = when (entry.severity) {
+                                    LogSeverity.ERROR, LogSeverity.USER_REPORT -> Color(0xFFFCA5A5)
+                                    LogSeverity.WARN -> Color(0xFFFDE68A)
+                                    LogSeverity.INFO -> Color(0xFFA7F3D0)
+                                }
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(Color(0x1AFFFFFF), RoundedCornerShape(8.dp))
+                                        .padding(6.dp)
+                                ) {
+                                    Text(
+                                        text = "[${entry.timestamp}] ${entry.tag} • ${entry.errorCode}",
+                                        fontFamily = FontFamily.Monospace,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = badgeColor,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = entry.message,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color.White
+                                    )
+                                }
                             }
                         }
                     }
                 }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        onUpdateAcademicSettings(
-                            selectedGrade,
-                            selectedYear,
-                            selectedTerm,
-                            activeSubjects,
-                            pitchVal,
-                            rateVal
-                        )
-                        showSettingsDialog = false
-                    }
-                ) {
-                    Text("حفظ التغييرات")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showSettingsDialog = false }) {
-                    Text("إلغاء")
-                }
             }
-        )
+        }
     }
 }
-

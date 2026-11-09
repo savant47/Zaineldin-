@@ -368,7 +368,7 @@ private fun WelcomeHeroBanner(
                             color = Color.White
                         )
                         Text(
-                            text = profile.gradeLabel,
+                            text = "${profile.gradeLabel} • ${profile.currentTerm} (${profile.academicYear})",
                             style = MaterialTheme.typography.bodyMedium,
                             color = Color(0xFFD1FAE5)
                         )

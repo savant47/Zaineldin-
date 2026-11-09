@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -238,8 +239,8 @@ fun AuthenticatedTutorApp(
                     NavigationRailItem(
                         selected = currentTab == MainTab.CURRICULUM_AND_PYTHON,
                         onClick = { tutorViewModel.selectTab(MainTab.CURRICULUM_AND_PYTHON) },
-                        icon = { Icon(Icons.Default.AutoStories, contentDescription = "الكتب والتحديث واللوج") },
-                        label = { Text("التحديث") },
+                        icon = { Icon(Icons.Default.Settings, contentDescription = "الإعدادات والمناهج") },
+                        label = { Text("الإعدادات") },
                         modifier = Modifier.testTag("rail_tab_curriculum")
                     )
                 }
@@ -279,8 +280,8 @@ fun AuthenticatedTutorApp(
                             NavigationBarItem(
                                 selected = currentTab == MainTab.CURRICULUM_AND_PYTHON,
                                 onClick = { tutorViewModel.selectTab(MainTab.CURRICULUM_AND_PYTHON) },
-                                icon = { Icon(Icons.Default.AutoStories, contentDescription = "الكتب والتحديث واللوج") },
-                                label = { Text("التحديث واللوج") },
+                                icon = { Icon(Icons.Default.Settings, contentDescription = "الإعدادات والمناهج") },
+                                label = { Text("الإعدادات") },
                                 modifier = Modifier.testTag("nav_tab_curriculum")
                             )
                         }
